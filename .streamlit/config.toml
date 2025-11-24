@@ -1,7 +1,7 @@
 [theme]
-base="dark"
+base="light"
 primaryColor="#900C3F"         # Rouge Foncé (utilisé pour les boutons, liens)
-backgroundColor="#1A531A"      # Vert Foncé (utilisé pour le fond principal)
+backgroundColor="#FFFFFF"      # Vert Foncé (utilisé pour le fond principal)
 secondaryBackgroundColor="#2E8B57" # Vert Forêt (pour la barre latérale)
 textColor="#FFFFFF"            # Texte : Blanc
 font="sans serif"
