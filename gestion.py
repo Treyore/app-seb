@@ -26,7 +26,8 @@ def connexion_google_sheet():
             
         client = gspread.authorize(creds)
         # Ouvre la feuille (assurez-vous que le nom correspond à votre feuille)
-        sheet = client.open("Base Clients Chauffage").sheet1
+        # NOTE : Si vous avez modifié la feuille, il faudra ajuster l'index ou le nom
+        sheet = client.open("Base Clients Chauffage").sheet1 
         return sheet
     except Exception as e:
         st.error(f"Erreur de connexion : {e}")
@@ -47,7 +48,7 @@ def charger_donnees(sheet):
             except:
                 historique = []
             
-            # Stockage de TOUS les champs
+            # Stockage de TOUS les champs (AJOUT du champ fichiers_client)
             client_data = {
                 "nom": ligne.get('Nom', ''),
                 "prenom": ligne.get('Prenom', ''),
@@ -57,6 +58,7 @@ def charger_donnees(sheet):
                 "telephone": ligne.get('Telephone', ''),
                 "email": ligne.get('Email', ''),
                 "equipement": ligne.get('Equipement', ''),
+                "fichiers_client": ligne.get('Fichiers_Client', ''), # NOUVEAU : Doit exister dans l'en-tête de votre Google Sheet
                 "historique": historique
             }
 
@@ -64,7 +66,7 @@ def charger_donnees(sheet):
             index_fields = [
                 client_data["nom"], client_data["prenom"], client_data["adresse"],
                 client_data["ville"], client_data["code_postal"], client_data["telephone"],
-                client_data["email"], client_data["equipement"]
+                client_data["email"], client_data["equipement"], client_data["fichiers_client"]
             ]
             
             # Concaténation des champs, conversion en minuscules et nettoyage
@@ -77,15 +79,26 @@ def charger_donnees(sheet):
             
     return db
 
-def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement):
+def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
-    nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, "[]"]
+    # ATTENTION : Si vous ajoutez un champ à votre Google Sheet, l'index de 'Historique' (colonne 9 actuellement) va changer.
+    # Assurez-vous d'avoir ajouté la colonne 'Fichiers_Client' à votre Google Sheet, typiquement avant 'Historique' (elle deviendra colonne 9)
+    nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client, "[]"]
     sheet.append_row(nouvelle_ligne)
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
     st.rerun()
 
-# MISE À JOUR : La fonction reçoit maintenant le type et le technicien
+# Fonction générique pour mettre à jour un champ unique dans la ligne d'un client
+def update_client_field(sheet, nom_client, col_index, new_value):
+    try:
+        cellule = sheet.find(nom_client)
+        sheet.update_cell(cellule.row, col_index, new_value)
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de la mise à jour du champ (col {col_index}) : {e}")
+        return False
+        
 def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     historique = db[nom_client_cle]['historique']
     historique.append(nouvelle_inter)
@@ -96,8 +109,9 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     try:
         # On cherche le client par son Nom (colonne 1)
         cellule = sheet.find(nom)
-        # On cherche ensuite la cellule 'Historique' (9ème colonne)
-        sheet.update_cell(cellule.row, 9, historique_txt) # Mise à jour de la colonne Historique (index 9)
+        # On cherche ensuite la cellule 'Historique'. 
+        # J'ASSUME ICI que 'Historique' est en COLONNE 10 si 'Fichiers_Client' est en 9.
+        sheet.update_cell(cellule.row, 10, historique_txt) 
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
@@ -125,9 +139,8 @@ def supprimer_client_sheet(sheet, nom_client):
         st.error(f"Erreur lors de la suppression du client : Impossible de trouver la ligne du client. {e}")
         return False
 
-
 # --- INTERFACE GRAPHIQUE ---
-st.title(" SEBApp le chauffagiste connecté")
+st.title("🔥 App Chauffagiste - Connectée")
 st.markdown("---")
 
 # 1. Connexion
@@ -156,6 +169,12 @@ if menu == "➕ Nouveau Client":
             ville = st.text_input("Ville")
             email = st.text_input("Email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)")
+        
+        # NOUVEAU CHAMP FICHIER CLIENT
+        fichiers_client = st.text_area(
+            "Liens Fichiers Client (PDF, Photos Chaudière, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
+            height=100
+        )
             
         valider = st.form_submit_button("Enregistrer le client")
         
@@ -164,7 +183,7 @@ if menu == "➕ Nouveau Client":
             if nom_complet in db:
                 st.warning(f"Le client {nom_complet} existe déjà dans la base.")
             else:
-                ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement)
+                ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, fichiers_client)
                 st.success(f"Client {nom_complet} ajouté !")
                 # st.rerun() est appelé dans la fonction d'ajout
 
@@ -195,6 +214,12 @@ elif menu == "🛠️ Nouvelle Intervention":
         desc = st.text_area("Description de l'intervention")
         prix = st.number_input("Prix (en €)", step=10)
         
+        # NOUVEAU CHAMP FICHIER INTERVENTION
+        fichiers_inter = st.text_area(
+            "Liens Fichiers Intervention (Facture, Photo des travaux, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
+            height=80
+        )
+        
         if st.button("Valider l'intervention"):
             # Vérification simple pour s'assurer que l'intervention est assignée à au moins un technicien
             if not techniciens:
@@ -203,10 +228,11 @@ elif menu == "🛠️ Nouvelle Intervention":
                 # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
                 inter = {
                     "date": str(date), 
-                    "type": type_inter,           # Nouveau champ
-                    "techniciens": techniciens,   # Nouveau champ
+                    "type": type_inter,           
+                    "techniciens": techniciens,   
                     "desc": desc, 
-                    "prix": prix
+                    "prix": prix,
+                    "fichiers_inter": fichiers_inter # Nouveau champ
                 }
                 ajouter_inter_sheet(sheet, choix, db, inter)
                 st.success("Intervention sauvegardée en ligne !")
@@ -216,7 +242,7 @@ elif menu == "🛠️ Nouvelle Intervention":
 
 # Section pour mettre à jour et SUPPRIMER un client
 elif menu == "✍️ Mettre à jour Client":
-    st.header("Mettre à jour / Supprimer un client")
+    st.header("Mettre à jour / Supprimer un client & Modifier les Interventions")
     if not db:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
     else:
@@ -224,17 +250,20 @@ elif menu == "✍️ Mettre à jour Client":
         if 'suppression_confirmee' not in st.session_state:
             st.session_state.suppression_confirmee = False
             
-        client_selectionne = st.selectbox("Sélectionnez le client à modifier ou supprimer", sorted(db.keys()))
+        client_selectionne = st.selectbox("Sélectionnez le client", sorted(db.keys()))
         
         if client_selectionne:
             infos_actuelles = db[client_selectionne]
             
-            st.subheader(f"Informations de {client_selectionne}")
+            # ------------------------------------------------------------------
+            # --- BLOC 1 : Modification des Informations Client ---
+            # ------------------------------------------------------------------
+            st.subheader(f"1. Informations Générales de {client_selectionne}")
             
-            # --- Bloc de Modification ---
             with st.form("form_update_client"):
                 col1_up, col2_up = st.columns(2)
                 
+                # J'ASSUME QUE LE NOM ET PRÉNOM NE SONT PAS MODIFIABLES (clé de recherche)
                 with col1_up:
                     st.text_input("Nom (Clé)", value=infos_actuelles['nom'], disabled=True)
                     nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'])
@@ -247,7 +276,14 @@ elif menu == "✍️ Mettre à jour Client":
                     nouvel_email = st.text_input("Email", value=infos_actuelles['email'])
                     nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'])
                 
-                update_valider = st.form_submit_button("Sauvegarder les modifications")
+                # NOUVEAU CHAMP DE FICHIERS CLIENT
+                nouveaux_fichiers_client = st.text_area(
+                    "Liens Fichiers Client", 
+                    value=infos_actuelles.get('fichiers_client', ''),
+                    height=100
+                )
+                
+                update_valider = st.form_submit_button("Sauvegarder les modifications Client")
                 
                 if update_valider:
                     try:
@@ -255,26 +291,122 @@ elif menu == "✍️ Mettre à jour Client":
                         cellule = sheet.find(infos_actuelles['nom'])
                         ligne_a_modifier = cellule.row
                         
-                        # 2. On met à jour les champs
-                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  # Adresse (C=3)
-                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    # Ville (D=4)
-                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) # Code Postal (E=5)
-                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  # Téléphone (F=6)
-                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     # Email (G=7)
-                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement) # Equipement (H=8)
+                        # 2. On met à jour les champs (ATTENTION aux INDEX de COLONNES)
+                        # Je suppose l'ordre des colonnes : 1:Nom, 2:Prenom, 3:Adresse, 4:Ville, 5:CP, 6:Tel, 7:Email, 8:Equipement
+                        # NOUVEAU: 9:Fichiers_Client, 10:Historique
+                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
+                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
+                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
+                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  
+                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     
+                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
+                        sheet.update_cell(ligne_a_modifier, 9, nouveaux_fichiers_client) # Mise à jour du nouveau champ
                         
-                        st.success(f"Informations du client {client_selectionne} mises à jour !")
+                        st.success(f"Informations générales du client {client_selectionne} mises à jour !")
                         
                         # 3. Forcer le rechargement des données
                         st.cache_resource.clear()
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
+                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. Vérifiez l'ordre des colonnes dans la fonction. {e}")
                         
             st.markdown("---")
             
-            # --- Bloc de Suppression ---
+            # ------------------------------------------------------------------
+            # --- BLOC 2 : Modification des Interventions ---
+            # ------------------------------------------------------------------
+            st.subheader("2. Modification des Interventions Passées")
+            
+            historique = infos_actuelles.get('historique', [])
+            
+            if not historique:
+                st.info("Ce client n'a pas encore d'intervention enregistrée.")
+            else:
+                # Créer des clés pour l'édition
+                options_interventions = [
+                    f"[{h['date']}] {h.get('type', 'Intervention')} - {h.get('desc', '')[:40]}..." 
+                    for h in historique
+                ]
+                
+                inter_selectionnee_titre = st.selectbox(
+                    "Sélectionnez l'intervention à modifier",
+                    options_interventions
+                )
+                
+                # Trouver l'index de l'intervention sélectionnée dans la liste historique
+                inter_index = options_interventions.index(inter_selectionnee_titre)
+                inter_a_modifier = historique[inter_index]
+                
+                with st.form(f"form_modifier_inter_{inter_index}"):
+                    
+                    col_edit_date, col_edit_prix = st.columns(2)
+                    with col_edit_date:
+                        # Assurer que la date est au bon format pour st.date_input
+                        date_obj = datetime.strptime(inter_a_modifier['date'], '%Y-%m-%d').date()
+                        nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}")
+                    
+                    with col_edit_prix:
+                        nouveau_prix = st.number_input("Prix (€)", value=inter_a_modifier['prix'], step=10, key=f"prix_{inter_index}")
+
+                    col_edit_type, col_edit_tech = st.columns(2)
+                    with col_edit_type:
+                        nouveau_type = st.selectbox(
+                            "Type d'intervention",
+                            ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"],
+                            index=["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"].index(inter_a_modifier.get('type', "Entretien annuel")),
+                            key=f"type_{inter_index}"
+                        )
+                    with col_edit_tech:
+                        nouveaux_techniciens = st.multiselect(
+                            "Technicien(s) assigné(s)",
+                            ["Seb", "Colin"],
+                            default=inter_a_modifier.get('techniciens', []),
+                            key=f"tech_{inter_index}"
+                        )
+
+                    nouvelle_desc = st.text_area(
+                        "Description de l'intervention", 
+                        value=inter_a_modifier['desc'], 
+                        key=f"desc_{inter_index}"
+                    )
+                    
+                    # NOUVEAU CHAMP FICHIER INTERVENTION
+                    nouveaux_fichiers_inter = st.text_area(
+                        "Liens Fichiers Intervention", 
+                        value=inter_a_modifier.get('fichiers_inter', ''), 
+                        height=80,
+                        key=f"fichiers_{inter_index}"
+                    )
+                    
+                    sauvegarder_inter = st.form_submit_button("Sauvegarder l'intervention modifiée")
+                    
+                    if sauvegarder_inter:
+                        # Mettre à jour l'objet dans la liste historique
+                        historique[inter_index] = {
+                            "date": str(nouvelle_date),
+                            "type": nouveau_type,
+                            "techniciens": nouveaux_techniciens,
+                            "desc": nouvelle_desc,
+                            "prix": nouveau_prix,
+                            "fichiers_inter": nouveaux_fichiers_inter
+                        }
+                        
+                        # Convertir l'historique mis à jour en JSON
+                        historique_txt = json.dumps(historique, ensure_ascii=False)
+                        
+                        # Enregistrer le nouvel historique dans Google Sheets (Colonne 10)
+                        if update_client_field(sheet, infos_actuelles['nom'], 10, historique_txt):
+                            st.success(f"Intervention du {nouvelle_date} mise à jour avec succès.")
+                            st.cache_resource.clear()
+                            st.rerun()
+
+            st.markdown("---")
+            
+            # ------------------------------------------------------------------
+            # --- BLOC 3 : Suppression du Client (inchangé) ---
+            # ------------------------------------------------------------------
+            st.subheader("3. Suppression Définitive du Client")
             st.error("Zone de Danger")
             st.warning(f"Attention : La suppression du client **{client_selectionne}** est définitive et ne peut être annulée.")
 
@@ -343,11 +475,26 @@ elif menu == "🔍 Rechercher":
             st.markdown(f"**🏠 Adresse :** {infos['adresse'] or 'N/A'}, {infos['code_postal'] or 'N/A'} {infos['ville'] or 'N/A'}")
             st.markdown(f"**🔧 Équipement :** {infos['equipement'] or 'N/A'}")
             
+            # AFFICHAGE des FICHIERS CLIENT
+            fichiers_client_str = infos.get('fichiers_client', 'N/A')
+            st.markdown("---")
+            st.markdown("**📂 Liens Fichiers Client :**")
+            if fichiers_client_str and fichiers_client_str != 'N/A':
+                # Afficher les liens sous forme de liste cliquable
+                links = re.split(r'[,\n]', fichiers_client_str)
+                for link in [l.strip() for l in links if l.strip()]:
+                    if link.startswith('http'):
+                        st.markdown(f"- [Ouvrir le document]({link})")
+                    else:
+                         st.markdown(f"- {link} (Lien invalide ou incomplet)")
+            else:
+                st.write("Aucun fichier client joint.")
+            st.markdown("---")
+            
             st.subheader("Historique des Interventions")
             if infos['historique']:
                 # Afficher la dernière intervention en haut
                 for h in sorted(infos['historique'], key=lambda x: x['date'], reverse=True): # Trie par date
-                    # MISE À JOUR : Affichage du type et du ou des techniciens
                     techniciens_str = ", ".join(h.get('techniciens', ['N/A']))
                     type_str = h.get('type', 'N/A')
                     
@@ -355,6 +502,19 @@ elif menu == "🔍 Rechercher":
                         f"**{type_str}** par **{techniciens_str}** le 📅 **{h['date']}** : "
                         f"{h['desc']} ({h['prix']}€)"
                     )
+                    
+                    # AFFICHAGE des FICHIERS INTERVENTION
+                    fichiers_inter_str = h.get('fichiers_inter', '')
+                    if fichiers_inter_str:
+                         st.markdown("**🔗 Pièces jointes :**")
+                         # Afficher les liens sous forme de liste cliquable
+                         links = re.split(r'[,\n]', fichiers_inter_str)
+                         for link in [l.strip() for l in links if l.strip()]:
+                            if link.startswith('http'):
+                                st.markdown(f"  - [Ouvrir le fichier]({link})")
+                            else:
+                                st.markdown(f"  - {link} (Lien invalide ou incomplet)")
+
             else:
                 st.write("Aucune intervention enregistrée pour ce client.")
     else:
