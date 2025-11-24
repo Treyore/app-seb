@@ -9,15 +9,14 @@ import time
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
-# Initialiser l'état de session pour gérer la page d'entrée
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
+# L'état 'logged_in' n'est plus nécessaire car l'application démarre directement.
+# Laisser 'logged_in' à True ou supprimer sa logique de vérification est l'approche la plus propre.
 
 # --- CONSTANTES ---
 # NOUVEAU TITRE de l'application
 APP_TITLE = "🔥 SEBApp le chauffagiste connectée"
 
-# --- URLs des images pour la page d'accueil ---
+# --- URLs des images pour la page d'accueil (Non utilisées, mais conservées dans le code) ---
 IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/c81b77576a13beee81e9d69f3f06f95842a34bb5/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
 IMAGE_URL_2 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba7/seb%20lunettes%20soleil.webp"
 
@@ -123,6 +122,7 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
 def update_client_field(sheet, nom_client_principal, col_index, new_value):
     try:
         # On cherche le client par son Nom (colonne 1)
+        # Note: Cette recherche n'est pas optimale si plusieurs clients ont le même prénom (mais ça marche pour le nom complet)
         cellule = sheet.find(nom_client_principal) 
         sheet.update_cell(cellule.row, col_index, new_value)
         return True
@@ -175,68 +175,120 @@ def supprimer_client_sheet(sheet, nom_client):
 sheet = connexion_google_sheet()
 
 # ------------------------------------------------------------------
-# --- GESTION DE LA PAGE D'ENTRÉE ---
-# ------------------------------------------------------------------
-if not st.session_state.logged_in:
-    st.title(APP_TITLE)
-    st.markdown("---")
-    st.header("Bienvenue Seb")
-    st.markdown("## Votre tableau de bord de gestion client et interventions.")
-    st.markdown("---")
-    
-    # Affichage des images
-    col_img1, col_img2 = st.columns(2)
-    
-    with col_img1:
-        st.image(IMAGE_URL_1, caption="Prêt pour l'action !")
-        
-    with col_img2:
-        st.image(IMAGE_URL_2, caption="Le boss !", use_column_width=True)
-        
-    st.markdown("---")
-    
-    if st.button("Merci Ilune (Démarrer l'application)", type="primary"):
-        st.session_state.logged_in = True
-        st.rerun() # Recharge la page pour afficher le menu et l'appli principale
-
-    # Arrêter l'exécution du reste du script tant que le bouton n'est pas cliqué
-    st.stop()
-    
-# ------------------------------------------------------------------
-# --- APPLICATION PRINCIPALE (Affiche uniquement si logged_in est True) ---
+# --- DÉMARRAGE DIRECT DE L'APPLICATION PRINCIPALE ---
 # ------------------------------------------------------------------
 
 # 2. Menu (maintenant visible dans la sidebar)
 menu = st.sidebar.radio(
     "Menu", 
     (
-        "🏡 Accueil", 
-        "🔍 Rechercher", 
+        "🔍 Rechercher", # Page par défaut (index=0)
         "➕ Nouveau Client", 
         "🛠️ Nouvelle Intervention", 
         "✍️ Mettre à jour (Modifier)",
-        "🗑️ Supprimer Client/Intervention" # NOUVEAU MENU
+        "🗑️ Supprimer Client/Intervention"
     ),
-    # Après login, la page de recherche sera la page par défaut
-    index=1 
+    # Index par défaut est 0, ce qui correspond à "🔍 Rechercher"
+    index=0 
 )
 
-# 3. Chargement des données
-if menu == "🏡 Accueil":
-    db = {} 
-else:
-    db = charger_donnees(sheet)
+# 3. Chargement des données (Doit toujours charger les données)
+db = charger_donnees(sheet)
 
 st.title(APP_TITLE)
 st.markdown("---")
 
 # ------------------------------------------------------------------
 # --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
+# (La logique "🏡 Accueil" a été supprimée)
 # ------------------------------------------------------------------
 
-if menu == "🏡 Accueil":
-    st.header("Tableau de Bord")
-    st.info("Bienvenue dans votre application de gestion. Utilisez le menu à gauche pour naviguer !")
+# --- RECHERCHE (Page par défaut) ---
+if menu == "🔍 Rechercher":
+    st.header("Recherche de Clients Multi-critères")
+    recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
+    
+    # -----------------------------------------------------
+    # LOGIQUE DE FILTRAGE
+    # -----------------------------------------------------
+    resultats = []
+    if recherche:
+        search_term = recherche.lower()
+        search_term = re.sub(r'[^a-z0-9\s]', '', search_term).strip()
+        
+        if search_term:
+            # On cherche si le terme de recherche se trouve n'importe où dans l'index_recherche
+            for nom_complet, client_data in db.items():
+                if search_term in client_data['recherche_index']:
+                    resultats.append(nom_complet)
+        
+    else:
+        # Si le champ de recherche est vide, on affiche tous les clients (par ordre alphabétique)
+        resultats = sorted(db.keys())
+
+    if resultats:
+        st.subheader(f"Résultats ({len(resultats)})")
+        
+        selection = st.selectbox("Sélectionnez le client pour voir les détails", sorted(resultats))
+        
+        if selection:
+            infos = db[selection]
+            
+            st.subheader(f"Informations de {infos['nom']} {infos['prenom']}")
+            
+            col_tel, col_mail = st.columns(2)
+            with col_tel:
+                st.markdown(f"**📞 Téléphone :** {infos['telephone'] or 'N/A'}")
+            with col_mail:
+                st.markdown(f"**📧 Email :** {infos['email'] or 'N/A'}")
+                
+            st.markdown(f"**🏠 Adresse :** {infos['adresse'] or 'N/A'}, {infos['code_postal'] or 'N/A'} {infos['ville'] or 'N/A'}")
+            st.markdown(f"**🔧 Équipement :** {infos['equipement'] or 'N/A'}")
+            
+            # AFFICHAGE des FICHIERS CLIENT
+            fichiers_client_str = infos.get('fichiers_client', 'N/A')
+            st.markdown("---")
+            st.markdown("**📂 Liens Fichiers Client :**")
+            if fichiers_client_str and fichiers_client_str != 'N/A':
+                # Afficher les liens sous forme de liste cliquable
+                links = re.split(r'[,\n]', fichiers_client_str)
+                for link in [l.strip() for l in links if l.strip()]:
+                    if link.startswith('http'):
+                        st.markdown(f"- [Ouvrir le document]({link})")
+                    else:
+                         st.markdown(f"- {link} (Lien invalide ou incomplet)")
+            else:
+                st.write("Aucun fichier client joint.")
+            st.markdown("---")
+            
+            st.subheader("Historique des Interventions")
+            if infos['historique']:
+                # Afficher la dernière intervention en haut
+                for h in sorted(infos['historique'], key=lambda x: x['date'], reverse=True): # Trie par date
+                    techniciens_str = ", ".join(h.get('techniciens', ['N/A']))
+                    type_str = h.get('type', 'N/A')
+                    
+                    st.info(
+                        f"**{type_str}** par **{techniciens_str}** le 📅 **{h['date']}** : "
+                        f"{h['desc']} ({h['prix']}€)"
+                    )
+                    
+                    # AFFICHAGE des FICHIERS INTERVENTION
+                    fichiers_inter_str = h.get('fichiers_inter', '')
+                    if fichiers_inter_str:
+                         st.markdown("**🔗 Pièces jointes :**")
+                         # Afficher les liens sous forme de liste cliquable
+                         links = re.split(r'[,\n]', fichiers_inter_str)
+                         for link in [l.strip() for l in links if l.strip()]:
+                            if link.startswith('http'):
+                                st.markdown(f"  - [Ouvrir le fichier]({link})")
+                            else:
+                                st.markdown(f"  - {link} (Lien invalide ou incomplet)")
+
+            else:
+                st.write("Aucune intervention enregistrée pour ce client.")
+    else:
+        st.warning("Aucun client trouvé correspondant à la recherche.")
 
 
 elif menu == "➕ Nouveau Client":
@@ -396,7 +448,7 @@ elif menu == "🛠️ Nouvelle Intervention":
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
 # ------------------------------------------------------------------
-# --- NOUVEAU BLOC : MISE À JOUR (MODIFIER) ---
+# --- BLOC : MISE À JOUR (MODIFIER) ---
 # ------------------------------------------------------------------
 elif menu == "✍️ Mettre à jour (Modifier)":
     st.header("Mettre à jour les informations Client et Interventions")
@@ -611,7 +663,7 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                             st.rerun()
 
 # ------------------------------------------------------------------
-# --- NOUVEAU BLOC : SUPPRESSION ---
+# --- BLOC : SUPPRESSION ---
 # ------------------------------------------------------------------
 elif menu == "🗑️ Supprimer Client/Intervention":
     st.header("🗑️ Suppression Définitive")
@@ -634,6 +686,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
         if client_selectionne_del:
             infos_actuelles_del = db[client_selectionne_del]
             
+            # Étape 1: Bouton pour initier la suppression
             if st.button(f"Initier la suppression de {client_selectionne_del}", key="btn_confirm_del_init", type="secondary"):
                 st.session_state.suppression_confirmee_client = True
                 
@@ -644,8 +697,10 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                 
                 with col_del_ok:
                     if st.button("CONFIRMER LA SUPPRESSION DÉFINITIVE DU CLIENT", type="primary"):
-                        if supprimer_client_sheet(infos_actuelles_del['nom']):
+                        # Utiliser le Nom du client comme clé de recherche de ligne pour la suppression
+                        if supprimer_client_sheet(sheet, infos_actuelles_del['nom']):
                             st.success(f"Le client {client_selectionne_del} a été SUPPRIMÉ avec succès.")
+                            # Réinitialiser l'état de confirmation
                             st.session_state.suppression_confirmee_client = False
                             st.cache_resource.clear()
                             st.rerun()
@@ -696,92 +751,3 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
-                        
-# ------------------------------------------------------------------
-# --- RECHERCHE (inchangé) ---
-# ------------------------------------------------------------------
-elif menu == "🔍 Rechercher":
-    st.header("Recherche de Clients Multi-critères")
-    recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
-    
-    # -----------------------------------------------------
-    # LOGIQUE DE FILTRAGE
-    # -----------------------------------------------------
-    resultats = []
-    if recherche:
-        search_term = recherche.lower()
-        search_term = re.sub(r'[^a-z0-9\s]', '', search_term).strip()
-        
-        if search_term:
-            # On cherche si le terme de recherche se trouve n'importe où dans l'index_recherche
-            for nom_complet, client_data in db.items():
-                if search_term in client_data['recherche_index']:
-                    resultats.append(nom_complet)
-        
-    else:
-        # Si le champ de recherche est vide, on affiche tous les clients (par ordre alphabétique)
-        resultats = sorted(db.keys())
-
-    if resultats:
-        st.subheader(f"Résultats ({len(resultats)})")
-        
-        selection = st.selectbox("Sélectionnez le client pour voir les détails", sorted(resultats))
-        
-        if selection:
-            infos = db[selection]
-            
-            st.subheader(f"Informations de {infos['nom']} {infos['prenom']}")
-            
-            col_tel, col_mail = st.columns(2)
-            with col_tel:
-                st.markdown(f"**📞 Téléphone :** {infos['telephone'] or 'N/A'}")
-            with col_mail:
-                st.markdown(f"**📧 Email :** {infos['email'] or 'N/A'}")
-                
-            st.markdown(f"**🏠 Adresse :** {infos['adresse'] or 'N/A'}, {infos['code_postal'] or 'N/A'} {infos['ville'] or 'N/A'}")
-            st.markdown(f"**🔧 Équipement :** {infos['equipement'] or 'N/A'}")
-            
-            # AFFICHAGE des FICHIERS CLIENT
-            fichiers_client_str = infos.get('fichiers_client', 'N/A')
-            st.markdown("---")
-            st.markdown("**📂 Liens Fichiers Client :**")
-            if fichiers_client_str and fichiers_client_str != 'N/A':
-                # Afficher les liens sous forme de liste cliquable
-                links = re.split(r'[,\n]', fichiers_client_str)
-                for link in [l.strip() for l in links if l.strip()]:
-                    if link.startswith('http'):
-                        st.markdown(f"- [Ouvrir le document]({link})")
-                    else:
-                         st.markdown(f"- {link} (Lien invalide ou incomplet)")
-            else:
-                st.write("Aucun fichier client joint.")
-            st.markdown("---")
-            
-            st.subheader("Historique des Interventions")
-            if infos['historique']:
-                # Afficher la dernière intervention en haut
-                for h in sorted(infos['historique'], key=lambda x: x['date'], reverse=True): # Trie par date
-                    techniciens_str = ", ".join(h.get('techniciens', ['N/A']))
-                    type_str = h.get('type', 'N/A')
-                    
-                    st.info(
-                        f"**{type_str}** par **{techniciens_str}** le 📅 **{h['date']}** : "
-                        f"{h['desc']} ({h['prix']}€)"
-                    )
-                    
-                    # AFFICHAGE des FICHIERS INTERVENTION
-                    fichiers_inter_str = h.get('fichiers_inter', '')
-                    if fichiers_inter_str:
-                         st.markdown("**🔗 Pièces jointes :**")
-                         # Afficher les liens sous forme de liste cliquable
-                         links = re.split(r'[,\n]', fichiers_inter_str)
-                         for link in [l.strip() for l in links if l.strip()]:
-                            if link.startswith('http'):
-                                st.markdown(f"  - [Ouvrir le fichier]({link})")
-                            else:
-                                st.markdown(f"  - {link} (Lien invalide ou incomplet)")
-
-            else:
-                st.write("Aucune intervention enregistrée pour ce client.")
-    else:
-        st.warning("Aucun client trouvé correspondant à la recherche.")
