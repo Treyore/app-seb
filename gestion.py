@@ -15,7 +15,7 @@ if 'logged_in' not in st.session_state:
 
 # --- CONSTANTES ---
 # NOUVEAU TITRE de l'application
-APP_TITLE = "SEBApp le chauffagiste connectée"
+APP_TITLE = "🔥 SEBApp le chauffagiste connectée"
 
 # --- URLs des images pour la page d'accueil ---
 IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/c81b77576a13beee81e9d69f3f06f95842a34bb5/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
@@ -55,7 +55,6 @@ def handle_upload(uploaded_file):
     """
     if uploaded_file is not None:
         # Simule le processus de stockage et génère un lien de placeholder
-        # Le nom du fichier est utilisé comme partie du lien
         placeholder_link = f"https://placeholder.cloud.storage/documents/{int(time.time())}/{uploaded_file.name.replace(' ', '_')}"
         st.toast(f"Fichier téléversé : {uploaded_file.name}. Lien généré.", icon="✅")
         return placeholder_link
@@ -106,6 +105,9 @@ def charger_donnees(sheet):
             
             db[nom_complet] = client_data
             
+            # Stocker aussi le nom complet (clé d'accès au dictionnaire) pour l'utiliser dans les fonctions de mise à jour
+            client_data["nom_complet"] = nom_complet 
+            
     return db
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
@@ -118,10 +120,10 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
     st.rerun()
 
 # Fonction générique pour mettre à jour un champ unique dans la ligne d'un client
-def update_client_field(sheet, nom_client, col_index, new_value):
+def update_client_field(sheet, nom_client_principal, col_index, new_value):
     try:
-        cellule = sheet.find(nom_client)
-        # Utiliser la colonne 1 (Nom) pour la recherche car c'est la clé
+        # On cherche le client par son Nom (colonne 1)
+        cellule = sheet.find(nom_client_principal) 
         sheet.update_cell(cellule.row, col_index, new_value)
         return True
     except Exception as e:
@@ -207,15 +209,21 @@ if not st.session_state.logged_in:
 # 2. Menu (maintenant visible dans la sidebar)
 menu = st.sidebar.radio(
     "Menu", 
-    ("🏡 Accueil", "🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"),
+    (
+        "🏡 Accueil", 
+        "🔍 Rechercher", 
+        "➕ Nouveau Client", 
+        "🛠️ Nouvelle Intervention", 
+        "✍️ Mettre à jour (Modifier)",
+        "🗑️ Supprimer Client/Intervention" # NOUVEAU MENU
+    ),
     # Après login, la page de recherche sera la page par défaut
     index=1 
 )
 
-# 3. Chargement des données (uniquement si ce n'est pas la page d'accueil, bien que le cache le rende rapide)
-# On charge les données si on est sur n'importe quelle page fonctionnelle.
+# 3. Chargement des données
 if menu == "🏡 Accueil":
-    db = {} # Pas besoin de charger les données pour l'accueil simple
+    db = {} 
 else:
     db = charger_donnees(sheet)
 
@@ -264,7 +272,8 @@ elif menu == "➕ Nouveau Client":
         fichiers_client = st.text_area(
             "Liens Fichiers Client (Liens existants, ou liens générés après téléversement)", 
             height=100,
-            key="text_client_add"
+            key="text_client_add",
+            value="" # Assurez-vous que la valeur initiale est vide
         )
         
         # Logique de gestion de l'upload pour le client (doit être lié à un bouton ou à un événement)
@@ -281,15 +290,15 @@ elif menu == "➕ Nouveau Client":
                         st.session_state.text_client_add = new_link
                     
                     # Force le champ à se mettre à jour visuellement
-                    fichiers_client = st.session_state.text_client_add
-                    st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
-
+                    # Le champ "fichiers_client" dans le formulaire utilise st.session_state.text_client_add comme key.
+                    # Il se mettra à jour lors du rerun.
+                    st.rerun() 
             
         valider = st.form_submit_button("Enregistrer le client")
         
         if valider and nom and prenom: # Exiger au moins Nom et Prénom
             # Utiliser la valeur finale du champ de liens
-            final_fichiers_client = st.session_state.text_client_add if 'text_client_add' in st.session_state else fichiers_client
+            final_fichiers_client = st.session_state.text_client_add
 
             nom_complet = f"{nom} {prenom}".strip()
             if nom_complet in db:
@@ -343,7 +352,8 @@ elif menu == "🛠️ Nouvelle Intervention":
         fichiers_inter = st.text_area(
             "Liens Fichiers Intervention (Facture, Photo des travaux, etc.)", 
             height=80,
-            key="text_inter_add"
+            key="text_inter_add",
+            value="" # Assurez-vous que la valeur initiale est vide
         )
         
         # Logique de gestion de l'upload pour l'intervention
@@ -358,8 +368,7 @@ elif menu == "🛠️ Nouvelle Intervention":
                         st.session_state.text_inter_add = new_link
                     
                     # Force le champ à se mettre à jour visuellement
-                    fichiers_inter = st.session_state.text_inter_add
-                    st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+                    st.rerun() 
 
         
         if st.button("Valider l'intervention"):
@@ -368,7 +377,7 @@ elif menu == "🛠️ Nouvelle Intervention":
                 st.warning("Veuillez assigner au moins un technicien à l'intervention.")
             else:
                 # Utiliser la valeur finale du champ de liens
-                final_fichiers_inter = st.session_state.text_inter_add if 'text_inter_add' in st.session_state else fichiers_inter
+                final_fichiers_inter = st.session_state.text_inter_add
 
                 # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
                 inter = {
@@ -386,41 +395,38 @@ elif menu == "🛠️ Nouvelle Intervention":
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
-# Section pour mettre à jour et SUPPRIMER un client
-elif menu == "✍️ Mettre à jour Client":
-    st.header("Mettre à jour / Supprimer un client & Modifier les Interventions")
+# ------------------------------------------------------------------
+# --- NOUVEAU BLOC : MISE À JOUR (MODIFIER) ---
+# ------------------------------------------------------------------
+elif menu == "✍️ Mettre à jour (Modifier)":
+    st.header("Mettre à jour les informations Client et Interventions")
     if not db:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
     else:
-        # Initialiser ou réinitialiser l'état de confirmation
-        if 'suppression_confirmee' not in st.session_state:
-            st.session_state.suppression_confirmee = False
-            
-        client_selectionne = st.selectbox("Sélectionnez le client", sorted(db.keys()))
+        # Sélection du client
+        client_selectionne = st.selectbox("Sélectionnez le client à modifier", sorted(db.keys()), key="select_modif_client")
         
         if client_selectionne:
             infos_actuelles = db[client_selectionne]
             
-            # ------------------------------------------------------------------
             # --- BLOC 1 : Modification des Informations Client ---
-            # ------------------------------------------------------------------
             st.subheader(f"1. Informations Générales de {client_selectionne}")
             
-            with st.form("form_update_client"):
+            # Utilisation de form_update_client_general pour éviter les conflits de clés
+            with st.form("form_update_client_general"): 
                 col1_up, col2_up = st.columns(2)
                 
-                # J'ASSUME QUE LE NOM ET PRÉNOM NE SONT PAS MODIFIABLES (clé de recherche)
                 with col1_up:
                     st.text_input("Nom (Clé)", value=infos_actuelles['nom'], disabled=True)
-                    nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'])
-                    nouveau_code_postal = st.text_input("Code Postal", value=infos_actuelles['code_postal'])
-                    nouveau_telephone = st.text_input("Téléphone", value=infos_actuelles['telephone'])
+                    nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'], key="addr_upd")
+                    nouveau_code_postal = st.text_input("Code Postal", value=infos_actuelles['code_postal'], key="cp_upd")
+                    nouveau_telephone = st.text_input("Téléphone", value=infos_actuelles['telephone'], key="tel_upd")
                     
                 with col2_up:
                     st.text_input("Prénom (Clé)", value=infos_actuelles['prenom'], disabled=True)
-                    nouvelle_ville = st.text_input("Ville", value=infos_actuelles['ville'])
-                    nouvel_email = st.text_input("Email", value=infos_actuelles['email'])
-                    nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'])
+                    nouvelle_ville = st.text_input("Ville", value=infos_actuelles['ville'], key="ville_upd")
+                    nouvel_email = st.text_input("Email", value=infos_actuelles['email'], key="email_upd")
+                    nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'], key="eq_upd")
                 
                 st.markdown("---")
                 st.subheader("Fichiers Client")
@@ -428,42 +434,42 @@ elif menu == "✍️ Mettre à jour Client":
                 # NOUVEAU: Champ de téléversement pour la modification client
                 uploaded_file_client_update = st.file_uploader(
                     "Téléverser un nouveau document client (max 5 Mo)", 
-                    key="file_client_update",
+                    key="file_client_update_general", # Clé générique pour ce menu
                     accept_multiple_files=False,
                     type=['pdf', 'jpg', 'jpeg', 'png']
                 )
 
                 # NOUVEAU CHAMP DE FICHIERS CLIENT
                 # Utilisation d'une clé session pour la mise à jour dynamique
-                if f'text_client_update_{client_selectionne}' not in st.session_state:
-                     st.session_state[f'text_client_update_{client_selectionne}'] = infos_actuelles.get('fichiers_client', '')
+                key_client_files = f'text_client_update_{client_selectionne}_general'
+                if key_client_files not in st.session_state:
+                     st.session_state[key_client_files] = infos_actuelles.get('fichiers_client', '')
 
                 nouveaux_fichiers_client = st.text_area(
                     "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
-                    value=st.session_state[f'text_client_update_{client_selectionne}'],
+                    value=st.session_state[key_client_files],
                     height=100,
-                    key=f"text_client_update_{client_selectionne}" # Clé dynamique
+                    key=key_client_files # Clé dynamique
                 )
                 
                 # Logique de gestion de l'upload pour la modification client
                 if uploaded_file_client_update:
-                    if st.button("Ajouter le document téléversé aux liens client (Modif)", key="btn_upload_client_update"):
+                    if st.button("Ajouter le document téléversé aux liens client (Modif)", key="btn_upload_client_update_general"):
                         new_link = handle_upload(uploaded_file_client_update)
                         if new_link:
-                            current_links = st.session_state[f'text_client_update_{client_selectionne}'].strip()
+                            current_links = st.session_state[key_client_files].strip()
                             if current_links:
-                                st.session_state[f'text_client_update_{client_selectionne}'] = current_links + f"\n{new_link}"
+                                st.session_state[key_client_files] = current_links + f"\n{new_link}"
                             else:
-                                st.session_state[f'text_client_update_{client_selectionne}'] = new_link
+                                st.session_state[key_client_files] = new_link
                             
-                            st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+                            st.rerun() 
 
                 
                 update_valider = st.form_submit_button("Sauvegarder les modifications Client")
                 
                 if update_valider:
-                    # Utiliser la valeur finale du champ de liens
-                    final_fichiers_client = st.session_state[f'text_client_update_{client_selectionne}']
+                    final_fichiers_client = st.session_state[key_client_files]
                     
                     try:
                         # 1. On cherche la ligne du client (par son Nom)
@@ -471,7 +477,6 @@ elif menu == "✍️ Mettre à jour Client":
                         ligne_a_modifier = cellule.row
                         
                         # 2. On met à jour les champs (ATTENTION aux INDEX de COLONNES)
-                        # 3:Adresse, 4:Ville, 5:CP, 6:Tel, 7:Email, 8:Equipement, 9:Fichiers_Client
                         sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
                         sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
                         sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
@@ -482,18 +487,15 @@ elif menu == "✍️ Mettre à jour Client":
                         
                         st.success(f"Informations générales du client {client_selectionne} mises à jour !")
                         
-                        # 3. Forcer le rechargement des données
                         st.cache_resource.clear()
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. Vérifiez l'ordre des colonnes dans la fonction. {e}")
+                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
                         
             st.markdown("---")
             
-            # ------------------------------------------------------------------
             # --- BLOC 2 : Modification des Interventions ---
-            # ------------------------------------------------------------------
             st.subheader("2. Modification des Interventions Passées")
             
             historique = infos_actuelles.get('historique', [])
@@ -520,12 +522,11 @@ elif menu == "✍️ Mettre à jour Client":
                     
                     col_edit_date, col_edit_prix = st.columns(2)
                     with col_edit_date:
-                        # Assurer que la date est au bon format pour st.date_input
                         date_obj = datetime.strptime(inter_a_modifier['date'], '%Y-%m-%d').date()
-                        nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}")
+                        nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}_mod")
                     
                     with col_edit_prix:
-                        nouveau_prix = st.number_input("Prix (€)", value=inter_a_modifier['prix'], step=10, key=f"prix_{inter_index}")
+                        nouveau_prix = st.number_input("Prix (€)", value=inter_a_modifier['prix'], step=10, key=f"prix_{inter_index}_mod")
 
                     col_edit_type, col_edit_tech = st.columns(2)
                     with col_edit_type:
@@ -533,64 +534,62 @@ elif menu == "✍️ Mettre à jour Client":
                             "Type d'intervention",
                             ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"],
                             index=["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"].index(inter_a_modifier.get('type', "Entretien annuel")),
-                            key=f"type_{inter_index}"
+                            key=f"type_{inter_index}_mod"
                         )
                     with col_edit_tech:
                         nouveaux_techniciens = st.multiselect(
                             "Technicien(s) assigné(s)",
                             ["Seb", "Colin"],
                             default=inter_a_modifier.get('techniciens', []),
-                            key=f"tech_{inter_index}"
+                            key=f"tech_{inter_index}_mod"
                         )
 
                     nouvelle_desc = st.text_area(
                         "Description de l'intervention", 
                         value=inter_a_modifier['desc'], 
-                        key=f"desc_{inter_index}"
+                        key=f"desc_{inter_index}_mod"
                     )
                     
                     st.markdown("---")
                     st.subheader("Fichiers Intervention")
                     
-                    # NOUVEAU: Champ de téléversement pour la modification d'intervention
                     uploaded_file_inter_update = st.file_uploader(
                         "Téléverser un nouveau document d'intervention (max 5 Mo)", 
-                        key=f"file_inter_update_{inter_index}",
+                        key=f"file_inter_update_{inter_index}_mod",
                         accept_multiple_files=False,
                         type=['pdf', 'jpg', 'jpeg', 'png']
                     )
                     
-                    # NOUVEAU CHAMP FICHIER INTERVENTION
-                    # Utilisation d'une clé session pour la mise à jour dynamique
-                    if f'text_inter_update_{inter_index}' not in st.session_state:
-                        st.session_state[f'text_inter_update_{inter_index}'] = inter_a_modifier.get('fichiers_inter', '')
+                    # Clé de session dynamique pour les liens
+                    key_inter_files = f'text_inter_update_{inter_index}_mod'
+                    if key_inter_files not in st.session_state:
+                        st.session_state[key_inter_files] = inter_a_modifier.get('fichiers_inter', '')
 
                     nouveaux_fichiers_inter = st.text_area(
                         "Liens Fichiers Intervention (Modifiez ici ou ajoutez après téléversement)", 
-                        value=st.session_state[f'text_inter_update_{inter_index}'], 
+                        value=st.session_state[key_inter_files], 
                         height=80,
-                        key=f"text_inter_update_{inter_index}"
+                        key=key_inter_files
                     )
                     
                     # Logique de gestion de l'upload pour la modification d'intervention
                     if uploaded_file_inter_update:
-                        if st.button("Ajouter le document téléversé aux liens intervention (Modif)", key=f"btn_upload_inter_update_{inter_index}"):
+                        if st.button("Ajouter le document téléversé aux liens intervention (Modif)", key=f"btn_upload_inter_update_{inter_index}_mod"):
                             new_link = handle_upload(uploaded_file_inter_update)
                             if new_link:
-                                current_links = st.session_state[f'text_inter_update_{inter_index}'].strip()
+                                current_links = st.session_state[key_inter_files].strip()
                                 if current_links:
-                                    st.session_state[f'text_inter_update_{inter_index}'] = current_links + f"\n{new_link}"
+                                    st.session_state[key_inter_files] = current_links + f"\n{new_link}"
                                 else:
-                                    st.session_state[f'text_inter_update_{inter_index}'] = new_link
+                                    st.session_state[key_inter_files] = new_link
                                 
-                                st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
-
+                                st.rerun() 
 
                     sauvegarder_inter = st.form_submit_button("Sauvegarder l'intervention modifiée")
                     
                     if sauvegarder_inter:
                         # Utiliser la valeur finale du champ de liens
-                        final_fichiers_inter = st.session_state[f'text_inter_update_{inter_index}']
+                        final_fichiers_inter = st.session_state[key_inter_files]
 
                         # Mettre à jour l'objet dans la liste historique
                         historique[inter_index] = {
@@ -611,39 +610,96 @@ elif menu == "✍️ Mettre à jour Client":
                             st.cache_resource.clear()
                             st.rerun()
 
-            st.markdown("---")
-            
-            # ------------------------------------------------------------------
-            # --- BLOC 3 : Suppression du Client (inchangé) ---
-            # ------------------------------------------------------------------
-            st.subheader("3. Suppression Définitive du Client")
-            st.error("Zone de Danger")
-            st.warning(f"Attention : La suppression du client **{client_selectionne}** est définitive et ne peut être annulée.")
+# ------------------------------------------------------------------
+# --- NOUVEAU BLOC : SUPPRESSION ---
+# ------------------------------------------------------------------
+elif menu == "🗑️ Supprimer Client/Intervention":
+    st.header("🗑️ Suppression Définitive")
+    st.error("Cette zone permet de supprimer définitivement des clients ou des interventions de la base de données.")
+    
+    if not db:
+        st.info("La base est vide. Aucune suppression possible.")
+    else:
+        # --- Suppression Client ---
+        st.markdown("---")
+        st.subheader("1. Supprimer un Client Définitivement")
+        st.warning("⚠️ ATTENTION : Cette action supprime le client, ses informations et tout son historique d'interventions.")
 
-            # Étape 1: Bouton pour commencer la confirmation
-            if st.button(f"Supprimer le client {client_selectionne}", key="btn_confirm_del"):
-                st.session_state.suppression_confirmee = True
+        # Initialiser ou réinitialiser l'état de confirmation
+        if 'suppression_confirmee_client' not in st.session_state:
+            st.session_state.suppression_confirmee_client = False
             
+        client_selectionne_del = st.selectbox("Sélectionnez le client à SUPPRIMER", sorted(db.keys()), key="select_del_client")
+        
+        if client_selectionne_del:
+            infos_actuelles_del = db[client_selectionne_del]
+            
+            if st.button(f"Initier la suppression de {client_selectionne_del}", key="btn_confirm_del_init", type="secondary"):
+                st.session_state.suppression_confirmee_client = True
+                
             # Étape 2: Afficher les boutons de confirmation après le premier clic
-            if st.session_state.suppression_confirmee:
-                st.info("Êtes-vous absolument sûr de vouloir supprimer ce client ?")
+            if st.session_state.suppression_confirmee_client:
+                st.info(f"Êtes-vous absolument sûr de vouloir SUPPRIMER DÉFINITIVEMENT {client_selectionne_del} ?")
                 col_del_ok, col_del_cancel = st.columns(2)
                 
                 with col_del_ok:
-                    if st.button("CONFIRMER LA SUPPRESSION DÉFINITIVE", type="primary"):
-                        if supprimer_client_sheet(sheet, infos_actuelles['nom']):
-                            st.success(f"Le client {client_selectionne} a été SUPPRIMÉ avec succès.")
-                            st.session_state.suppression_confirmee = False
-                            # Forcer le rechargement des données
+                    if st.button("CONFIRMER LA SUPPRESSION DÉFINITIVE DU CLIENT", type="primary"):
+                        if supprimer_client_sheet(infos_actuelles_del['nom']):
+                            st.success(f"Le client {client_selectionne_del} a été SUPPRIMÉ avec succès.")
+                            st.session_state.suppression_confirmee_client = False
                             st.cache_resource.clear()
                             st.rerun()
                 
                 with col_del_cancel:
-                    if st.button("Annuler la suppression"):
-                        st.session_state.suppression_confirmee = False
+                    if st.button("Annuler la suppression du client"):
+                        st.session_state.suppression_confirmee_client = False
                         st.rerun()
                         
+        # --- Suppression Intervention ---
+        st.markdown("---")
+        st.subheader("2. Supprimer une Intervention Spécifique")
+        st.warning("⚠️ ATTENTION : Cette action supprime uniquement l'intervention sélectionnée de l'historique du client.")
+        
+        client_selectionne_inter_del = st.selectbox("Sélectionnez le client (pour supprimer une intervention)", sorted(db.keys()), key="select_del_inter")
+        
+        if client_selectionne_inter_del:
+            infos_actuelles_inter_del = db[client_selectionne_inter_del]
+            historique_del = infos_actuelles_inter_del.get('historique', [])
+            
+            if not historique_del:
+                st.info("Ce client n'a pas d'historique d'intervention à supprimer.")
+            else:
+                # Créer des titres d'intervention pour la sélection
+                options_interventions_del = [
+                    f"[{h['date']}] {h.get('type', 'Intervention')} - {h.get('desc', '')[:50]}..." 
+                    for h in historique_del
+                ]
+                
+                inter_a_supprimer_titre = st.selectbox(
+                    "Sélectionnez l'intervention à supprimer",
+                    options_interventions_del
+                )
+                
+                # Trouver l'index de l'intervention sélectionnée
+                inter_index_del = options_interventions_del.index(inter_a_supprimer_titre)
+                
+                if st.button(f"SUPPRIMER l'intervention : {inter_a_supprimer_titre}", type="primary"):
+                    
+                    # Retirer l'intervention de la liste
+                    del historique_del[inter_index_del]
+                    
+                    # Convertir l'historique mis à jour en JSON
+                    historique_txt_del = json.dumps(historique_del, ensure_ascii=False)
+                    
+                    # Enregistrer le nouvel historique dans Google Sheets (Colonne 10)
+                    if update_client_field(sheet, infos_actuelles_inter_del['nom'], 10, historique_txt_del):
+                        st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
+                        st.cache_resource.clear()
+                        st.rerun()
                         
+# ------------------------------------------------------------------
+# --- RECHERCHE (inchangé) ---
+# ------------------------------------------------------------------
 elif menu == "🔍 Rechercher":
     st.header("Recherche de Clients Multi-critères")
     recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
