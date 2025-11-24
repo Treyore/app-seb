@@ -85,6 +85,7 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
     st.cache_resource.clear()
     st.rerun()
 
+# MISE À JOUR : La fonction reçoit maintenant le type et le technicien
 def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     historique = db[nom_client_cle]['historique']
     historique.append(nouvelle_inter)
@@ -126,7 +127,7 @@ def supprimer_client_sheet(sheet, nom_client):
 
 
 # --- INTERFACE GRAPHIQUE ---
-st.title("🔥 App Chauffagiste - Connectée")
+st.title(" SEBApp le chauffagiste connecté")
 st.markdown("---")
 
 # 1. Connexion
@@ -172,15 +173,44 @@ elif menu == "🛠️ Nouvelle Intervention":
     if db:
         # Triage de la liste des clients pour le selectbox
         choix = st.selectbox("Client", sorted(db.keys()))
+        
+        # NOUVEAUX CHAMPS
+        col_type, col_tech = st.columns(2)
+        
+        with col_type:
+            type_inter = st.selectbox(
+                "Type d'intervention",
+                ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"],
+                index=0
+            )
+
+        with col_tech:
+            techniciens = st.multiselect(
+                "Technicien(s) assigné(s)",
+                ["Seb", "Colin"],
+                default=[]
+            )
+            
         date = st.date_input("Date", datetime.now())
         desc = st.text_area("Description de l'intervention")
         prix = st.number_input("Prix (en €)", step=10)
         
         if st.button("Valider l'intervention"):
-            inter = {"date": str(date), "desc": desc, "prix": prix}
-            ajouter_inter_sheet(sheet, choix, db, inter)
-            st.success("Intervention sauvegardée en ligne !")
-            # st.rerun() est appelé dans la fonction d'ajout
+            # Vérification simple pour s'assurer que l'intervention est assignée à au moins un technicien
+            if not techniciens:
+                st.warning("Veuillez assigner au moins un technicien à l'intervention.")
+            else:
+                # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
+                inter = {
+                    "date": str(date), 
+                    "type": type_inter,           # Nouveau champ
+                    "techniciens": techniciens,   # Nouveau champ
+                    "desc": desc, 
+                    "prix": prix
+                }
+                ajouter_inter_sheet(sheet, choix, db, inter)
+                st.success("Intervention sauvegardée en ligne !")
+                # st.rerun() est appelé dans la fonction d'ajout
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
@@ -317,7 +347,14 @@ elif menu == "🔍 Rechercher":
             if infos['historique']:
                 # Afficher la dernière intervention en haut
                 for h in sorted(infos['historique'], key=lambda x: x['date'], reverse=True): # Trie par date
-                    st.info(f"📅 **{h['date']}** : {h['desc']} ({h['prix']}€)")
+                    # MISE À JOUR : Affichage du type et du ou des techniciens
+                    techniciens_str = ", ".join(h.get('techniciens', ['N/A']))
+                    type_str = h.get('type', 'N/A')
+                    
+                    st.info(
+                        f"**{type_str}** par **{techniciens_str}** le 📅 **{h['date']}** : "
+                        f"{h['desc']} ({h['prix']}€)"
+                    )
             else:
                 st.write("Aucune intervention enregistrée pour ce client.")
     else:
