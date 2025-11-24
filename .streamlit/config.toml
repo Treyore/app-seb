@@ -1,7 +1,7 @@
 [theme]
-base="light"
-primaryColor="#4A90E2"         # Bleu Ciel (utilisé pour les boutons, liens, titres secondaires)
-backgroundColor="#FFFFFF"      # Fond principal : Blanc
-secondaryBackgroundColor="#F0F0F0" # Gris très clair (utilisé pour la barre latérale ou les blocs)
-textColor="#262730"            # Texte : Gris foncé pour une bonne lisibilité
+base="dark"
+primaryColor="#900C3F"         # Rouge Foncé (utilisé pour les boutons, liens)
+backgroundColor="#1A531A"      # Vert Foncé (utilisé pour le fond principal)
+secondaryBackgroundColor="#2E8B57" # Vert Forêt (pour la barre latérale)
+textColor="#FFFFFF"            # Texte : Blanc
 font="sans serif"
