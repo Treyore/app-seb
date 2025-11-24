@@ -8,6 +8,12 @@ import re # Importation du module re pour les expressions régulières/nettoyage
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
+# --- URLs des images pour la page d'accueil ---
+# Utilisation des liens RAW de GitHub pour un affichage stable
+IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba6/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
+IMAGE_URL_2 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba7/seb%20lunettes%20soleil.webp"
+
+
 # --- CONNEXION GOOGLE SHEETS (Compatible PC et Cloud) ---
 # Utiliser @st.cache_resource pour les connexions et ressources (Sheet, DB)
 @st.cache_resource(ttl=3600) # Mise en cache de la CONNEXION pour 1h
@@ -81,8 +87,7 @@ def charger_donnees(sheet):
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
-    # ATTENTION : Si vous ajoutez un champ à votre Google Sheet, l'index de 'Historique' (colonne 9 actuellement) va changer.
-    # Assurez-vous d'avoir ajouté la colonne 'Fichiers_Client' à votre Google Sheet, typiquement avant 'Historique' (elle deviendra colonne 9)
+    # Assurez-vous d'avoir ajouté la colonne 'Fichiers_Client' à votre Google Sheet, typiquement avant 'Historique' (colonne 9)
     nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client, "[]"]
     sheet.append_row(nouvelle_ligne)
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
@@ -93,6 +98,7 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
 def update_client_field(sheet, nom_client, col_index, new_value):
     try:
         cellule = sheet.find(nom_client)
+        # Utiliser la colonne 1 (Nom) pour la recherche car c'est la clé
         sheet.update_cell(cellule.row, col_index, new_value)
         return True
     except Exception as e:
@@ -109,8 +115,7 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     try:
         # On cherche le client par son Nom (colonne 1)
         cellule = sheet.find(nom)
-        # On cherche ensuite la cellule 'Historique'. 
-        # J'ASSUME ICI que 'Historique' est en COLONNE 10 si 'Fichiers_Client' est en 9.
+        # Historique est en COLONNE 10
         sheet.update_cell(cellule.row, 10, historique_txt) 
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
@@ -140,19 +145,51 @@ def supprimer_client_sheet(sheet, nom_client):
         return False
 
 # --- INTERFACE GRAPHIQUE ---
-st.title("🔥 App Chauffagiste - Connectée")
-st.markdown("---")
 
-# 1. Connexion
+# 1. Connexion (doit être en dehors de la boucle du menu)
 sheet = connexion_google_sheet()
 
 # 2. Menu
-menu = st.sidebar.radio("Menu", ("🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"))
+# Ajout de "🏡 Accueil" et définition de l'ordre par défaut.
+menu = st.sidebar.radio(
+    "Menu", 
+    ("🏡 Accueil", "🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"),
+    # Définir l'index pour que la page d'accueil soit celle par défaut
+    index=0 
+)
 
-# 3. Chargement des données
-db = charger_donnees(sheet)
+# 3. Chargement des données (uniquement si ce n'est pas la page d'accueil, bien que le cache le rende rapide)
+if menu != "🏡 Accueil":
+    db = charger_donnees(sheet)
+else:
+    db = {} # Pas besoin de charger les données pour l'accueil
 
-if menu == "➕ Nouveau Client":
+st.title("🔥 App Chauffagiste - Connectée")
+st.markdown("---")
+
+# ------------------------------------------------------------------
+# --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
+# ------------------------------------------------------------------
+
+if menu == "🏡 Accueil":
+    st.header("Bienvenue Seb")
+    st.markdown("## Votre tableau de bord de gestion client et interventions.")
+    st.markdown("---")
+    
+    # Affichage des images
+    col_img1, col_img2 = st.columns(2)
+    
+    with col_img1:
+        st.image(IMAGE_URL_1, caption="Prêt pour l'action !")
+        
+    with col_img2:
+        st.image(IMAGE_URL_2, caption="Le boss !", use_column_width=True)
+        
+    st.markdown("---")
+    st.info("Utilisez le menu à gauche pour naviguer entre les fonctionnalités : Recherche, Ajout de clients et Modification/Mise à jour.")
+
+
+elif menu == "➕ Nouveau Client":
     st.header("Nouveau Client")
     with st.form("form_nouveau"):
         # Organisation en colonnes
@@ -170,7 +207,7 @@ if menu == "➕ Nouveau Client":
             email = st.text_input("Email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)")
         
-        # NOUVEAU CHAMP FICHIER CLIENT
+        # CHAMP FICHIER CLIENT
         fichiers_client = st.text_area(
             "Liens Fichiers Client (PDF, Photos Chaudière, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
             height=100
@@ -193,7 +230,7 @@ elif menu == "🛠️ Nouvelle Intervention":
         # Triage de la liste des clients pour le selectbox
         choix = st.selectbox("Client", sorted(db.keys()))
         
-        # NOUVEAUX CHAMPS
+        # CHAMPS
         col_type, col_tech = st.columns(2)
         
         with col_type:
@@ -214,7 +251,7 @@ elif menu == "🛠️ Nouvelle Intervention":
         desc = st.text_area("Description de l'intervention")
         prix = st.number_input("Prix (en €)", step=10)
         
-        # NOUVEAU CHAMP FICHIER INTERVENTION
+        # CHAMP FICHIER INTERVENTION
         fichiers_inter = st.text_area(
             "Liens Fichiers Intervention (Facture, Photo des travaux, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
             height=80
@@ -293,7 +330,7 @@ elif menu == "✍️ Mettre à jour Client":
                         
                         # 2. On met à jour les champs (ATTENTION aux INDEX de COLONNES)
                         # Je suppose l'ordre des colonnes : 1:Nom, 2:Prenom, 3:Adresse, 4:Ville, 5:CP, 6:Tel, 7:Email, 8:Equipement
-                        # NOUVEAU: 9:Fichiers_Client, 10:Historique
+                        # 9:Fichiers_Client, 10:Historique
                         sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
                         sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
                         sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
