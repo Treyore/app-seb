@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import json
 import re # Importation du module re pour les expressions régulières/nettoyage
+import time
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
@@ -12,14 +13,16 @@ st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
+# --- CONSTANTES ---
+# NOUVEAU TITRE de l'application
+APP_TITLE = "SEBApp le chauffagiste connectée"
+
 # --- URLs des images pour la page d'accueil ---
-# FIX: Mise à jour du lien RAW de la première image
 IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/c81b77576a13beee81e9d69f3f06f95842a34bb5/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
 IMAGE_URL_2 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba7/seb%20lunettes%20soleil.webp"
 
 
 # --- CONNEXION GOOGLE SHEETS (Compatible PC et Cloud) ---
-# Utiliser @st.cache_resource pour les connexions et ressources (Sheet, DB)
 @st.cache_resource(ttl=3600) # Mise en cache de la CONNEXION pour 1h
 def connexion_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -42,7 +45,24 @@ def connexion_google_sheet():
         st.error(f"Erreur de connexion : {e}")
         st.stop()
 
-# --- FONCTIONS (inchangées) ---
+# --- NOUVELLE FONCTION POUR GÉRER L'UPLOAD DE FICHIER ---
+# ATTENTION : Ceci est une implémentation SIMPLIFIÉE. 
+# En production, vous devez enregistrer le fichier sur un stockage permanent (Google Drive, S3, etc.)
+def handle_upload(uploaded_file):
+    """
+    Simule le téléversement d'un fichier et retourne un lien d'accès.
+    EN PRODUCTION : Remplacez ceci par l'API d'un service de stockage Cloud.
+    """
+    if uploaded_file is not None:
+        # Simule le processus de stockage et génère un lien de placeholder
+        # Le nom du fichier est utilisé comme partie du lien
+        placeholder_link = f"https://placeholder.cloud.storage/documents/{int(time.time())}/{uploaded_file.name.replace(' ', '_')}"
+        st.toast(f"Fichier téléversé : {uploaded_file.name}. Lien généré.", icon="✅")
+        return placeholder_link
+    return None
+
+# --- FONCTIONS EXISTANTES ---
+
 # Charger les données sans cache Streamlit pour éviter les problèmes d'hachage avec gspread
 def charger_donnees(sheet):
     # Récupère toutes les lignes du tableau
@@ -156,7 +176,7 @@ sheet = connexion_google_sheet()
 # --- GESTION DE LA PAGE D'ENTRÉE ---
 # ------------------------------------------------------------------
 if not st.session_state.logged_in:
-    st.title("🔥 App Chauffagiste - Connectée")
+    st.title(APP_TITLE)
     st.markdown("---")
     st.header("Bienvenue Seb")
     st.markdown("## Votre tableau de bord de gestion client et interventions.")
@@ -199,7 +219,7 @@ if menu == "🏡 Accueil":
 else:
     db = charger_donnees(sheet)
 
-st.title("🔥 App Chauffagiste - Connectée")
+st.title(APP_TITLE)
 st.markdown("---")
 
 # ------------------------------------------------------------------
@@ -229,22 +249,57 @@ elif menu == "➕ Nouveau Client":
             email = st.text_input("Email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)")
         
-        # CHAMP FICHIER CLIENT
-        fichiers_client = st.text_area(
-            "Liens Fichiers Client (PDF, Photos Chaudière, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
-            height=100
+        st.markdown("---")
+        st.subheader("Fichiers Client")
+        
+        # NOUVEAU: Champ de téléversement pour le client
+        uploaded_file_client = st.file_uploader(
+            "Téléverser un document client (max 5 Mo)", 
+            key="file_client_add",
+            accept_multiple_files=False,
+            type=['pdf', 'jpg', 'jpeg', 'png']
         )
+        
+        # Champ texte pour les liens (mis à jour après upload)
+        fichiers_client = st.text_area(
+            "Liens Fichiers Client (Liens existants, ou liens générés après téléversement)", 
+            height=100,
+            key="text_client_add"
+        )
+        
+        # Logique de gestion de l'upload pour le client (doit être lié à un bouton ou à un événement)
+        if uploaded_file_client:
+            # S'il y a un fichier uploadé, traiter l'upload
+            if st.button("Ajouter le document téléversé aux liens client", key="btn_upload_client"):
+                new_link = handle_upload(uploaded_file_client)
+                if new_link:
+                    # Ajouter le nouveau lien au champ texte existant
+                    current_links = st.session_state.text_client_add.strip()
+                    if current_links:
+                        st.session_state.text_client_add = current_links + f"\n{new_link}"
+                    else:
+                        st.session_state.text_client_add = new_link
+                    
+                    # Force le champ à se mettre à jour visuellement
+                    fichiers_client = st.session_state.text_client_add
+                    st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+
             
         valider = st.form_submit_button("Enregistrer le client")
         
         if valider and nom and prenom: # Exiger au moins Nom et Prénom
+            # Utiliser la valeur finale du champ de liens
+            final_fichiers_client = st.session_state.text_client_add if 'text_client_add' in st.session_state else fichiers_client
+
             nom_complet = f"{nom} {prenom}".strip()
             if nom_complet in db:
                 st.warning(f"Le client {nom_complet} existe déjà dans la base.")
             else:
-                ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, fichiers_client)
+                ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
                 st.success(f"Client {nom_complet} ajouté !")
-                # st.rerun() est appelé dans la fonction d'ajout
+                # Nettoyer l'état de session après l'ajout
+                if 'text_client_add' in st.session_state: del st.session_state.text_client_add
+
 
 elif menu == "🛠️ Nouvelle Intervention":
     st.header("Nouvelle Intervention")
@@ -273,17 +328,48 @@ elif menu == "🛠️ Nouvelle Intervention":
         desc = st.text_area("Description de l'intervention")
         prix = st.number_input("Prix (en €)", step=10)
         
+        st.markdown("---")
+        st.subheader("Fichiers Intervention")
+        
+        # NOUVEAU: Champ de téléversement pour l'intervention
+        uploaded_file_inter = st.file_uploader(
+            "Téléverser un document d'intervention (max 5 Mo)", 
+            key="file_inter_add",
+            accept_multiple_files=False,
+            type=['pdf', 'jpg', 'jpeg', 'png']
+        )
+
         # CHAMP FICHIER INTERVENTION
         fichiers_inter = st.text_area(
-            "Liens Fichiers Intervention (Facture, Photo des travaux, etc. - Séparez les liens par des virgules ou des retours à la ligne)", 
-            height=80
+            "Liens Fichiers Intervention (Facture, Photo des travaux, etc.)", 
+            height=80,
+            key="text_inter_add"
         )
+        
+        # Logique de gestion de l'upload pour l'intervention
+        if uploaded_file_inter:
+            if st.button("Ajouter le document téléversé aux liens intervention", key="btn_upload_inter"):
+                new_link = handle_upload(uploaded_file_inter)
+                if new_link:
+                    current_links = st.session_state.text_inter_add.strip()
+                    if current_links:
+                        st.session_state.text_inter_add = current_links + f"\n{new_link}"
+                    else:
+                        st.session_state.text_inter_add = new_link
+                    
+                    # Force le champ à se mettre à jour visuellement
+                    fichiers_inter = st.session_state.text_inter_add
+                    st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+
         
         if st.button("Valider l'intervention"):
             # Vérification simple pour s'assurer que l'intervention est assignée à au moins un technicien
             if not techniciens:
                 st.warning("Veuillez assigner au moins un technicien à l'intervention.")
             else:
+                # Utiliser la valeur finale du champ de liens
+                final_fichiers_inter = st.session_state.text_inter_add if 'text_inter_add' in st.session_state else fichiers_inter
+
                 # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
                 inter = {
                     "date": str(date), 
@@ -291,11 +377,12 @@ elif menu == "🛠️ Nouvelle Intervention":
                     "techniciens": techniciens,   
                     "desc": desc, 
                     "prix": prix,
-                    "fichiers_inter": fichiers_inter # Nouveau champ
+                    "fichiers_inter": final_fichiers_inter # Nouveau champ
                 }
                 ajouter_inter_sheet(sheet, choix, db, inter)
                 st.success("Intervention sauvegardée en ligne !")
-                # st.rerun() est appelé dans la fonction d'ajout
+                # Nettoyer l'état de session après l'ajout
+                if 'text_inter_add' in st.session_state: del st.session_state.text_inter_add
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
@@ -335,31 +422,63 @@ elif menu == "✍️ Mettre à jour Client":
                     nouvel_email = st.text_input("Email", value=infos_actuelles['email'])
                     nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'])
                 
-                # NOUVEAU CHAMP DE FICHIERS CLIENT
-                nouveaux_fichiers_client = st.text_area(
-                    "Liens Fichiers Client", 
-                    value=infos_actuelles.get('fichiers_client', ''),
-                    height=100
+                st.markdown("---")
+                st.subheader("Fichiers Client")
+                
+                # NOUVEAU: Champ de téléversement pour la modification client
+                uploaded_file_client_update = st.file_uploader(
+                    "Téléverser un nouveau document client (max 5 Mo)", 
+                    key="file_client_update",
+                    accept_multiple_files=False,
+                    type=['pdf', 'jpg', 'jpeg', 'png']
                 )
+
+                # NOUVEAU CHAMP DE FICHIERS CLIENT
+                # Utilisation d'une clé session pour la mise à jour dynamique
+                if f'text_client_update_{client_selectionne}' not in st.session_state:
+                     st.session_state[f'text_client_update_{client_selectionne}'] = infos_actuelles.get('fichiers_client', '')
+
+                nouveaux_fichiers_client = st.text_area(
+                    "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
+                    value=st.session_state[f'text_client_update_{client_selectionne}'],
+                    height=100,
+                    key=f"text_client_update_{client_selectionne}" # Clé dynamique
+                )
+                
+                # Logique de gestion de l'upload pour la modification client
+                if uploaded_file_client_update:
+                    if st.button("Ajouter le document téléversé aux liens client (Modif)", key="btn_upload_client_update"):
+                        new_link = handle_upload(uploaded_file_client_update)
+                        if new_link:
+                            current_links = st.session_state[f'text_client_update_{client_selectionne}'].strip()
+                            if current_links:
+                                st.session_state[f'text_client_update_{client_selectionne}'] = current_links + f"\n{new_link}"
+                            else:
+                                st.session_state[f'text_client_update_{client_selectionne}'] = new_link
+                            
+                            st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+
                 
                 update_valider = st.form_submit_button("Sauvegarder les modifications Client")
                 
                 if update_valider:
+                    # Utiliser la valeur finale du champ de liens
+                    final_fichiers_client = st.session_state[f'text_client_update_{client_selectionne}']
+                    
                     try:
                         # 1. On cherche la ligne du client (par son Nom)
                         cellule = sheet.find(infos_actuelles['nom'])
                         ligne_a_modifier = cellule.row
                         
                         # 2. On met à jour les champs (ATTENTION aux INDEX de COLONNES)
-                        # Je suppose l'ordre des colonnes : 1:Nom, 2:Prenom, 3:Adresse, 4:Ville, 5:CP, 6:Tel, 7:Email, 8:Equipement
-                        # 9:Fichiers_Client, 10:Historique
+                        # 3:Adresse, 4:Ville, 5:CP, 6:Tel, 7:Email, 8:Equipement, 9:Fichiers_Client
                         sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
                         sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
                         sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
                         sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  
                         sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     
                         sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
-                        sheet.update_cell(ligne_a_modifier, 9, nouveaux_fichiers_client) # Mise à jour du nouveau champ
+                        sheet.update_cell(ligne_a_modifier, 9, final_fichiers_client) 
                         
                         st.success(f"Informations générales du client {client_selectionne} mises à jour !")
                         
@@ -430,17 +549,49 @@ elif menu == "✍️ Mettre à jour Client":
                         key=f"desc_{inter_index}"
                     )
                     
-                    # NOUVEAU CHAMP FICHIER INTERVENTION
-                    nouveaux_fichiers_inter = st.text_area(
-                        "Liens Fichiers Intervention", 
-                        value=inter_a_modifier.get('fichiers_inter', ''), 
-                        height=80,
-                        key=f"fichiers_{inter_index}"
+                    st.markdown("---")
+                    st.subheader("Fichiers Intervention")
+                    
+                    # NOUVEAU: Champ de téléversement pour la modification d'intervention
+                    uploaded_file_inter_update = st.file_uploader(
+                        "Téléverser un nouveau document d'intervention (max 5 Mo)", 
+                        key=f"file_inter_update_{inter_index}",
+                        accept_multiple_files=False,
+                        type=['pdf', 'jpg', 'jpeg', 'png']
                     )
                     
+                    # NOUVEAU CHAMP FICHIER INTERVENTION
+                    # Utilisation d'une clé session pour la mise à jour dynamique
+                    if f'text_inter_update_{inter_index}' not in st.session_state:
+                        st.session_state[f'text_inter_update_{inter_index}'] = inter_a_modifier.get('fichiers_inter', '')
+
+                    nouveaux_fichiers_inter = st.text_area(
+                        "Liens Fichiers Intervention (Modifiez ici ou ajoutez après téléversement)", 
+                        value=st.session_state[f'text_inter_update_{inter_index}'], 
+                        height=80,
+                        key=f"text_inter_update_{inter_index}"
+                    )
+                    
+                    # Logique de gestion de l'upload pour la modification d'intervention
+                    if uploaded_file_inter_update:
+                        if st.button("Ajouter le document téléversé aux liens intervention (Modif)", key=f"btn_upload_inter_update_{inter_index}"):
+                            new_link = handle_upload(uploaded_file_inter_update)
+                            if new_link:
+                                current_links = st.session_state[f'text_inter_update_{inter_index}'].strip()
+                                if current_links:
+                                    st.session_state[f'text_inter_update_{inter_index}'] = current_links + f"\n{new_link}"
+                                else:
+                                    st.session_state[f'text_inter_update_{inter_index}'] = new_link
+                                
+                                st.rerun() # Rerun pour mettre à jour le champ texte dans le formulaire
+
+
                     sauvegarder_inter = st.form_submit_button("Sauvegarder l'intervention modifiée")
                     
                     if sauvegarder_inter:
+                        # Utiliser la valeur finale du champ de liens
+                        final_fichiers_inter = st.session_state[f'text_inter_update_{inter_index}']
+
                         # Mettre à jour l'objet dans la liste historique
                         historique[inter_index] = {
                             "date": str(nouvelle_date),
@@ -448,7 +599,7 @@ elif menu == "✍️ Mettre à jour Client":
                             "techniciens": nouveaux_techniciens,
                             "desc": nouvelle_desc,
                             "prix": nouveau_prix,
-                            "fichiers_inter": nouveaux_fichiers_inter
+                            "fichiers_inter": final_fichiers_inter
                         }
                         
                         # Convertir l'historique mis à jour en JSON
