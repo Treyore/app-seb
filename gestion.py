@@ -9,9 +9,6 @@ import time
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
-# L'état 'logged_in' n'est plus nécessaire car l'application démarre directement.
-# Laisser 'logged_in' à True ou supprimer sa logique de vérification est l'approche la plus propre.
-
 # --- CONSTANTES ---
 # NOUVEAU TITRE de l'application
 APP_TITLE = "🔥 SEBApp le chauffagiste connectée"
@@ -111,8 +108,12 @@ def charger_donnees(sheet):
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
-    # Assurez-vous d'avoir ajouté la colonne 'Fichiers_Client' à votre Google Sheet, typiquement avant 'Historique' (colonne 9)
-    nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client, "[]"]
+    # MODIFICATION : Historique (colonne 9 / I) vient avant Fichiers_Client (colonne 10 / J)
+    nouvelle_ligne = [
+        nom, prenom, adresse, ville, code_postal, tel, email, equipement, 
+        "[]", # Historique (Colonne 9 / I)
+        fichiers_client # Fichiers_Client (Colonne 10 / J)
+    ]
     sheet.append_row(nouvelle_ligne)
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
@@ -122,7 +123,6 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
 def update_client_field(sheet, nom_client_principal, col_index, new_value):
     try:
         # On cherche le client par son Nom (colonne 1)
-        # Note: Cette recherche n'est pas optimale si plusieurs clients ont le même prénom (mais ça marche pour le nom complet)
         cellule = sheet.find(nom_client_principal) 
         sheet.update_cell(cellule.row, col_index, new_value)
         return True
@@ -140,8 +140,8 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     try:
         # On cherche le client par son Nom (colonne 1)
         cellule = sheet.find(nom)
-        # Historique est en COLONNE 10
-        sheet.update_cell(cellule.row, 10, historique_txt) 
+        # MODIFICATION : Historique est maintenant en COLONNE 9 (I)
+        sheet.update_cell(cellule.row, 9, historique_txt) 
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
@@ -200,11 +200,11 @@ st.markdown("---")
 
 # ------------------------------------------------------------------
 # --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
-# (La logique "🏡 Accueil" a été supprimée)
 # ------------------------------------------------------------------
 
 # --- RECHERCHE (Page par défaut) ---
 if menu == "🔍 Rechercher":
+    # ... (le code Recherche n'a pas besoin d'être modifié)
     st.header("Recherche de Clients Multi-critères")
     recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
     
@@ -292,6 +292,7 @@ if menu == "🔍 Rechercher":
 
 
 elif menu == "➕ Nouveau Client":
+    # ... (le code Nouveau Client)
     st.header("Nouveau Client")
     with st.form("form_nouveau"):
         # Organisation en colonnes
@@ -535,7 +536,9 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  
                         sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     
                         sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
-                        sheet.update_cell(ligne_a_modifier, 9, final_fichiers_client) 
+                        
+                        # MODIFICATION : Fichiers Client est maintenant en COLONNE 10 (J)
+                        sheet.update_cell(ligne_a_modifier, 10, final_fichiers_client) 
                         
                         st.success(f"Informations générales du client {client_selectionne} mises à jour !")
                         
@@ -656,8 +659,8 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         # Convertir l'historique mis à jour en JSON
                         historique_txt = json.dumps(historique, ensure_ascii=False)
                         
-                        # Enregistrer le nouvel historique dans Google Sheets (Colonne 10)
-                        if update_client_field(sheet, infos_actuelles['nom'], 10, historique_txt):
+                        # MODIFICATION : Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
+                        if update_client_field(sheet, infos_actuelles['nom'], 9, historique_txt):
                             st.success(f"Intervention du {nouvelle_date} mise à jour avec succès.")
                             st.cache_resource.clear()
                             st.rerun()
@@ -746,8 +749,8 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                     # Convertir l'historique mis à jour en JSON
                     historique_txt_del = json.dumps(historique_del, ensure_ascii=False)
                     
-                    # Enregistrer le nouvel historique dans Google Sheets (Colonne 10)
-                    if update_client_field(sheet, infos_actuelles_inter_del['nom'], 10, historique_txt_del):
+                    # MODIFICATION : Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
+                    if update_client_field(sheet, infos_actuelles_inter_del['nom'], 9, historique_txt_del):
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
