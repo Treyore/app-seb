@@ -9,7 +9,7 @@ import re # Importation du module re pour les expressions régulières/nettoyage
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
 # --- CONNEXION GOOGLE SHEETS (Compatible PC et Cloud) ---
-# CHANGEMENT: Utiliser @st.cache_resource pour les connexions et ressources (Sheet, DB)
+# Utiliser @st.cache_resource pour les connexions et ressources (Sheet, DB)
 @st.cache_resource(ttl=3600) # Mise en cache de la CONNEXION pour 1h
 def connexion_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -21,10 +21,11 @@ def connexion_google_sheet():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         # CAS 2 : On est sur le PC en local (avec le fichier secrets.json)
         else:
+            # Assurez-vous d'avoir votre fichier 'secrets.json' dans le répertoire
             creds = ServiceAccountCredentials.from_json_keyfile_name("secrets.json", scope)
             
         client = gspread.authorize(creds)
-        # Ouvre la feuille 
+        # Ouvre la feuille (assurez-vous que le nom correspond à votre feuille)
         sheet = client.open("Base Clients Chauffage").sheet1
         return sheet
     except Exception as e:
@@ -32,8 +33,7 @@ def connexion_google_sheet():
         st.stop()
 
 # --- FONCTIONS ---
-# CHANGEMENT: On retire le cache de cette fonction, car elle génère l'erreur d'hachage.
-# La fonction est rapide car elle est appelée avec un objet 'sheet' mis en cache par @st.cache_resource.
+# Charger les données sans cache Streamlit pour éviter les problèmes d'hachage avec gspread
 def charger_donnees(sheet):
     # Récupère toutes les lignes du tableau
     lignes = sheet.get_all_records()
@@ -60,7 +60,7 @@ def charger_donnees(sheet):
                 "historique": historique
             }
 
-            # NOUVEAU: Créer un index de recherche pour tous les champs pertinents
+            # Créer un index de recherche pour tous les champs pertinents
             index_fields = [
                 client_data["nom"], client_data["prenom"], client_data["adresse"],
                 client_data["ville"], client_data["code_postal"], client_data["telephone"],
@@ -78,36 +78,51 @@ def charger_donnees(sheet):
     return db
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement):
-    # On prépare la ligne à ajouter. 
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
     nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, "[]"]
     sheet.append_row(nouvelle_ligne)
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
-    st.cache_data.clear() # On garde cette ligne au cas où le décorateur est remis
+    st.rerun()
 
 def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     historique = db[nom_client_cle]['historique']
     historique.append(nouvelle_inter)
     historique_txt = json.dumps(historique, ensure_ascii=False)
     
-    # Pour la mise à jour, on a besoin du Nom ET du Prénom
     nom = db[nom_client_cle]['nom']
-    # prenom = db[nom_client_cle]['prenom'] # Non utilisé ici, mais bien de le savoir
     
     try:
         # On cherche le client par son Nom (colonne 1)
-        # ATTENTION: gspread.find ne peut chercher qu'un seul critère. On cherche le Nom.
         cellule = sheet.find(nom)
-        # On cherche ensuite la cellule 'Historique' (qui est la 9ème colonne, index 9)
-        # L'index 9 correspond à la 9ème colonne (A=1, B=2, ..., I=9)
+        # On cherche ensuite la cellule 'Historique' (9ème colonne)
         sheet.update_cell(cellule.row, 9, historique_txt) # Mise à jour de la colonne Historique (index 9)
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
-    st.cache_data.clear() # On garde cette ligne au cas où le décorateur est remis
+    st.rerun()
+
+# FONCTION POUR SUPPRIMER UN CLIENT
+def supprimer_client_sheet(sheet, nom_client):
+    """Supprime la ligne du client dans Google Sheets en se basant sur le Nom."""
+    try:
+        # 1. Trouver la cellule contenant le Nom du client
+        cellule = sheet.find(nom_client)
+        ligne_a_supprimer = cellule.row
+        
+        # 2. Supprimer la ligne (l'index de ligne est basé sur 1)
+        if ligne_a_supprimer > 1: # S'assurer qu'on ne supprime pas l'en-tête
+            sheet.delete_rows(ligne_a_supprimer)
+            return True
+        else:
+            st.error("Tentative de suppression de l'en-tête ou ligne non trouvée.")
+            return False
+            
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression du client : Impossible de trouver la ligne du client. {e}")
+        return False
 
 
 # --- INTERFACE GRAPHIQUE ---
@@ -118,7 +133,6 @@ st.markdown("---")
 sheet = connexion_google_sheet()
 
 # 2. Menu
-# CHANGEMENT: Ajout d'une option "Mise à jour client" au menu
 menu = st.sidebar.radio("Menu", ("🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"))
 
 # 3. Chargement des données
@@ -127,7 +141,7 @@ db = charger_donnees(sheet)
 if menu == "➕ Nouveau Client":
     st.header("Nouveau Client")
     with st.form("form_nouveau"):
-        # Organisation en colonnes pour une meilleure interface mobile
+        # Organisation en colonnes
         col1, col2 = st.columns(2)
         
         with col1:
@@ -151,8 +165,7 @@ if menu == "➕ Nouveau Client":
             else:
                 ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement)
                 st.success(f"Client {nom_complet} ajouté !")
-                # Forcer le rechargement des données après l'ajout
-                st.rerun()
+                # st.rerun() est appelé dans la fonction d'ajout
 
 elif menu == "🛠️ Nouvelle Intervention":
     st.header("Nouvelle Intervention")
@@ -167,31 +180,32 @@ elif menu == "🛠️ Nouvelle Intervention":
             inter = {"date": str(date), "desc": desc, "prix": prix}
             ajouter_inter_sheet(sheet, choix, db, inter)
             st.success("Intervention sauvegardée en ligne !")
-            # Forcer le rechargement des données après l'ajout
-            st.rerun()
+            # st.rerun() est appelé dans la fonction d'ajout
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
-# AJOUT : Section pour mettre à jour les informations d'un client
+# Section pour mettre à jour et SUPPRIMER un client
 elif menu == "✍️ Mettre à jour Client":
-    st.header("Mettre à jour les informations d'un client")
+    st.header("Mettre à jour / Supprimer un client")
     if not db:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
     else:
-        client_selectionne = st.selectbox("Sélectionnez le client à modifier", sorted(db.keys()))
+        # Initialiser ou réinitialiser l'état de confirmation
+        if 'suppression_confirmee' not in st.session_state:
+            st.session_state.suppression_confirmee = False
+            
+        client_selectionne = st.selectbox("Sélectionnez le client à modifier ou supprimer", sorted(db.keys()))
         
         if client_selectionne:
             infos_actuelles = db[client_selectionne]
             
-            st.subheader(f"Modification de {client_selectionne}")
+            st.subheader(f"Informations de {client_selectionne}")
             
+            # --- Bloc de Modification ---
             with st.form("form_update_client"):
-                # Prérremplir avec les valeurs actuelles
                 col1_up, col2_up = st.columns(2)
                 
                 with col1_up:
-                    # Les champs Nom et Prénom ne sont pas modifiables directement car ils sont la clé de recherche.
-                    # On les affiche en lecture seule.
                     st.text_input("Nom (Clé)", value=infos_actuelles['nom'], disabled=True)
                     nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'])
                     nouveau_code_postal = st.text_input("Code Postal", value=infos_actuelles['code_postal'])
@@ -206,26 +220,18 @@ elif menu == "✍️ Mettre à jour Client":
                 update_valider = st.form_submit_button("Sauvegarder les modifications")
                 
                 if update_valider:
-                    # Les colonnes de la feuille sont (A=1, B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9)
-                    
                     try:
                         # 1. On cherche la ligne du client (par son Nom)
                         cellule = sheet.find(infos_actuelles['nom'])
                         ligne_a_modifier = cellule.row
                         
-                        # 2. On met à jour les champs (sauf Nom, Prénom et Historique)
-                        # Adresse (C=3)
-                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)
-                        # Ville (D=4)
-                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)
-                        # Code Postal (E=5)
-                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal)
-                        # Téléphone (F=6)
-                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)
-                        # Email (G=7)
-                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)
-                        # Equipement (H=8)
-                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
+                        # 2. On met à jour les champs
+                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  # Adresse (C=3)
+                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    # Ville (D=4)
+                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) # Code Postal (E=5)
+                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  # Téléphone (F=6)
+                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     # Email (G=7)
+                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement) # Equipement (H=8)
                         
                         st.success(f"Informations du client {client_selectionne} mises à jour !")
                         
@@ -236,10 +242,38 @@ elif menu == "✍️ Mettre à jour Client":
                     except Exception as e:
                         st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
                         
+            st.markdown("---")
+            
+            # --- Bloc de Suppression ---
+            st.error("Zone de Danger")
+            st.warning(f"Attention : La suppression du client **{client_selectionne}** est définitive et ne peut être annulée.")
 
+            # Étape 1: Bouton pour commencer la confirmation
+            if st.button(f"Supprimer le client {client_selectionne}", key="btn_confirm_del"):
+                st.session_state.suppression_confirmee = True
+            
+            # Étape 2: Afficher les boutons de confirmation après le premier clic
+            if st.session_state.suppression_confirmee:
+                st.info("Êtes-vous absolument sûr de vouloir supprimer ce client ?")
+                col_del_ok, col_del_cancel = st.columns(2)
+                
+                with col_del_ok:
+                    if st.button("CONFIRMER LA SUPPRESSION DÉFINITIVE", type="primary"):
+                        if supprimer_client_sheet(sheet, infos_actuelles['nom']):
+                            st.success(f"Le client {client_selectionne} a été SUPPRIMÉ avec succès.")
+                            st.session_state.suppression_confirmee = False
+                            # Forcer le rechargement des données
+                            st.cache_resource.clear()
+                            st.rerun()
+                
+                with col_del_cancel:
+                    if st.button("Annuler la suppression"):
+                        st.session_state.suppression_confirmee = False
+                        st.rerun()
+                        
+                        
 elif menu == "🔍 Rechercher":
     st.header("Recherche de Clients Multi-critères")
-    # NOUVEAU: Le champ de recherche est utilisé pour chercher dans l'index complet
     recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
     
     # -----------------------------------------------------
@@ -248,7 +282,6 @@ elif menu == "🔍 Rechercher":
     resultats = []
     if recherche:
         search_term = recherche.lower()
-        # Nettoyage du terme de recherche pour correspondre au format de l'index
         search_term = re.sub(r'[^a-z0-9\s]', '', search_term).strip()
         
         if search_term:
@@ -264,7 +297,6 @@ elif menu == "🔍 Rechercher":
     if resultats:
         st.subheader(f"Résultats ({len(resultats)})")
         
-        # Le selectbox affiche uniquement les clients trouvés
         selection = st.selectbox("Sélectionnez le client pour voir les détails", sorted(resultats))
         
         if selection:
