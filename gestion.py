@@ -6,25 +6,25 @@ import json
 import re # Importation du module re pour les expressions régulières/nettoyage
 
 # --- INJECTION CSS PERSONNALISÉ (Image de fond) ---
-# REMARQUE : Cette URL doit être l'URL RAW (brute) de votre image
-def set_background_image():
-    image_url = "https://raw.githubusercontent.com/Treyore/app-seb/8a1a983ffac5e52fee08e4c5e710898c4cefcafc/WhatsApp%20Image%202025-11-24%20at%2015.08.58.jpeg" 
+# REMARQUE : Ce bloc a été supprimé pour revenir au fond par défaut de Streamlit.
+# def set_background_image():
+#     image_url = "https://raw.githubusercontent.com/Treyore/app-seb/8a1a983ffac5e52fee08e4c5e710898c4cefcafc/WhatsApp%20Image%202025-11-24%20at%2015.08.58.jpeg" 
     
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background-image: url("{image_url}");
-            background-size: cover;
-            background-attachment: fixed;
-            background-position: center;
-            opacity: 0.9;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-set_background_image() 
+#     st.markdown(
+#         f"""
+#         <style>
+#         .stApp {{
+#             background-image: url("{image_url}");
+#             background-size: cover;
+#             background-attachment: fixed;
+#             background-position: center;
+#             opacity: 0.9;
+#         }}
+#         </style>
+#         """,
+#         unsafe_allow_html=True
+#     )
+# set_background_image() # L'appel a également été supprimé
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
@@ -191,7 +191,7 @@ elif menu == "🔍 Rechercher":
     recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
     
     # -----------------------------------------------------
-    # NOUVELLE LOGIQUE DE FILTRAGE
+    # LOGIQUE DE FILTRAGE
     # -----------------------------------------------------
     resultats = []
     if recherche:
