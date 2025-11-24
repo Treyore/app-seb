@@ -9,8 +9,6 @@ st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="
 
 # --- CONNEXION GOOGLE SHEETS ---
 def connexion_google_sheet():
-    # --- CONNEXION GOOGLE SHEETS ---
-def connexion_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
     try:
@@ -144,3 +142,4 @@ elif menu == "🔍 Rechercher":
     else:
 
         st.warning("Aucun résultat.")
+
