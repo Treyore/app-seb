@@ -5,32 +5,12 @@ from datetime import datetime
 import json
 import re # Importation du module re pour les expressions régulières/nettoyage
 
-# --- INJECTION CSS PERSONNALISÉ (Image de fond) ---
-# REMARQUE : Ce bloc a été supprimé pour revenir au fond par défaut de Streamlit.
-# def set_background_image():
-#     image_url = "https://raw.githubusercontent.com/Treyore/app-seb/8a1a983ffac5e52fee08e4c5e710898c4cefcafc/WhatsApp%20Image%202025-11-24%20at%2015.08.58.jpeg" 
-    
-#     st.markdown(
-#         f"""
-#         <style>
-#         .stApp {{
-#             background-image: url("{image_url}");
-#             background-size: cover;
-#             background-attachment: fixed;
-#             background-position: center;
-#             opacity: 0.9;
-#         }}
-#         </style>
-#         """,
-#         unsafe_allow_html=True
-#     )
-# set_background_image() # L'appel a également été supprimé
-
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
 # --- CONNEXION GOOGLE SHEETS (Compatible PC et Cloud) ---
-@st.cache_resource(ttl=3600) # Mise en cache de la connexion pour 1h
+# CHANGEMENT: Utiliser @st.cache_resource pour les connexions et ressources (Sheet, DB)
+@st.cache_resource(ttl=3600) # Mise en cache de la CONNEXION pour 1h
 def connexion_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
@@ -52,7 +32,8 @@ def connexion_google_sheet():
         st.stop()
 
 # --- FONCTIONS ---
-@st.cache_data(ttl=60) # Mise en cache des données pour 60 secondes
+# CHANGEMENT: On retire le cache de cette fonction, car elle génère l'erreur d'hachage.
+# La fonction est rapide car elle est appelée avec un objet 'sheet' mis en cache par @st.cache_resource.
 def charger_donnees(sheet):
     # Récupère toutes les lignes du tableau
     lignes = sheet.get_all_records()
@@ -101,6 +82,9 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
     nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, "[]"]
     sheet.append_row(nouvelle_ligne)
+    # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
+    st.cache_resource.clear()
+    st.cache_data.clear() # On garde cette ligne au cas où le décorateur est remis
 
 def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     historique = db[nom_client_cle]['historique']
@@ -120,6 +104,10 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
         sheet.update_cell(cellule.row, 9, historique_txt) # Mise à jour de la colonne Historique (index 9)
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
+        
+    # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
+    st.cache_resource.clear()
+    st.cache_data.clear() # On garde cette ligne au cas où le décorateur est remis
 
 
 # --- INTERFACE GRAPHIQUE ---
@@ -130,7 +118,8 @@ st.markdown("---")
 sheet = connexion_google_sheet()
 
 # 2. Menu
-menu = st.sidebar.radio("Menu", ("🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention"))
+# CHANGEMENT: Ajout d'une option "Mise à jour client" au menu
+menu = st.sidebar.radio("Menu", ("🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"))
 
 # 3. Chargement des données
 db = charger_donnees(sheet)
@@ -163,7 +152,6 @@ if menu == "➕ Nouveau Client":
                 ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement)
                 st.success(f"Client {nom_complet} ajouté !")
                 # Forcer le rechargement des données après l'ajout
-                st.cache_data.clear()
                 st.rerun()
 
 elif menu == "🛠️ Nouvelle Intervention":
@@ -180,10 +168,74 @@ elif menu == "🛠️ Nouvelle Intervention":
             ajouter_inter_sheet(sheet, choix, db, inter)
             st.success("Intervention sauvegardée en ligne !")
             # Forcer le rechargement des données après l'ajout
-            st.cache_data.clear()
             st.rerun()
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
+
+# AJOUT : Section pour mettre à jour les informations d'un client
+elif menu == "✍️ Mettre à jour Client":
+    st.header("Mettre à jour les informations d'un client")
+    if not db:
+        st.info("La base est vide. Veuillez ajouter un client d'abord.")
+    else:
+        client_selectionne = st.selectbox("Sélectionnez le client à modifier", sorted(db.keys()))
+        
+        if client_selectionne:
+            infos_actuelles = db[client_selectionne]
+            
+            st.subheader(f"Modification de {client_selectionne}")
+            
+            with st.form("form_update_client"):
+                # Prérremplir avec les valeurs actuelles
+                col1_up, col2_up = st.columns(2)
+                
+                with col1_up:
+                    # Les champs Nom et Prénom ne sont pas modifiables directement car ils sont la clé de recherche.
+                    # On les affiche en lecture seule.
+                    st.text_input("Nom (Clé)", value=infos_actuelles['nom'], disabled=True)
+                    nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'])
+                    nouveau_code_postal = st.text_input("Code Postal", value=infos_actuelles['code_postal'])
+                    nouveau_telephone = st.text_input("Téléphone", value=infos_actuelles['telephone'])
+                    
+                with col2_up:
+                    st.text_input("Prénom (Clé)", value=infos_actuelles['prenom'], disabled=True)
+                    nouvelle_ville = st.text_input("Ville", value=infos_actuelles['ville'])
+                    nouvel_email = st.text_input("Email", value=infos_actuelles['email'])
+                    nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'])
+                
+                update_valider = st.form_submit_button("Sauvegarder les modifications")
+                
+                if update_valider:
+                    # Les colonnes de la feuille sont (A=1, B=2, C=3, D=4, E=5, F=6, G=7, H=8, I=9)
+                    
+                    try:
+                        # 1. On cherche la ligne du client (par son Nom)
+                        cellule = sheet.find(infos_actuelles['nom'])
+                        ligne_a_modifier = cellule.row
+                        
+                        # 2. On met à jour les champs (sauf Nom, Prénom et Historique)
+                        # Adresse (C=3)
+                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)
+                        # Ville (D=4)
+                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)
+                        # Code Postal (E=5)
+                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal)
+                        # Téléphone (F=6)
+                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)
+                        # Email (G=7)
+                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)
+                        # Equipement (H=8)
+                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
+                        
+                        st.success(f"Informations du client {client_selectionne} mises à jour !")
+                        
+                        # 3. Forcer le rechargement des données
+                        st.cache_resource.clear()
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
+                        
 
 elif menu == "🔍 Rechercher":
     st.header("Recherche de Clients Multi-critères")
