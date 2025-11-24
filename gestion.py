@@ -279,7 +279,7 @@ elif menu == "➕ Nouveau Client":
         # Logique de gestion de l'upload pour le client (doit être lié à un bouton ou à un événement)
         if uploaded_file_client:
             # S'il y a un fichier uploadé, traiter l'upload
-            if st.button("Ajouter le document téléversé aux liens client", key="btn_upload_client"):
+            if st.button("Ajouter le document téléversé aux liens client", key="btn_upload_client_add"): # Clé unique
                 new_link = handle_upload(uploaded_file_client)
                 if new_link:
                     # Ajouter le nouveau lien au champ texte existant
@@ -298,7 +298,7 @@ elif menu == "➕ Nouveau Client":
         
         if valider and nom and prenom: # Exiger au moins Nom et Prénom
             # Utiliser la valeur finale du champ de liens
-            final_fichiers_client = st.session_state.text_client_add
+            final_fichiers_client = st.session_state.get('text_client_add', '') # Utiliser get() avec une valeur par défaut
 
             nom_complet = f"{nom} {prenom}".strip()
             if nom_complet in db:
@@ -358,7 +358,7 @@ elif menu == "🛠️ Nouvelle Intervention":
         
         # Logique de gestion de l'upload pour l'intervention
         if uploaded_file_inter:
-            if st.button("Ajouter le document téléversé aux liens intervention", key="btn_upload_inter"):
+            if st.button("Ajouter le document téléversé aux liens intervention", key="btn_upload_inter_add"): # Clé unique
                 new_link = handle_upload(uploaded_file_inter)
                 if new_link:
                     current_links = st.session_state.text_inter_add.strip()
@@ -377,7 +377,7 @@ elif menu == "🛠️ Nouvelle Intervention":
                 st.warning("Veuillez assigner au moins un technicien à l'intervention.")
             else:
                 # Utiliser la valeur finale du champ de liens
-                final_fichiers_inter = st.session_state.text_inter_add
+                final_fichiers_inter = st.session_state.get('text_inter_add', '') # Utiliser get() avec une valeur par défaut
 
                 # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
                 inter = {
@@ -469,7 +469,7 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                 update_valider = st.form_submit_button("Sauvegarder les modifications Client")
                 
                 if update_valider:
-                    final_fichiers_client = st.session_state[key_client_files]
+                    final_fichiers_client = st.session_state.get(key_client_files, '')
                     
                     try:
                         # 1. On cherche la ligne du client (par son Nom)
@@ -589,7 +589,7 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     
                     if sauvegarder_inter:
                         # Utiliser la valeur finale du champ de liens
-                        final_fichiers_inter = st.session_state[key_inter_files]
+                        final_fichiers_inter = st.session_state.get(key_inter_files, '')
 
                         # Mettre à jour l'objet dans la liste historique
                         historique[inter_index] = {
