@@ -108,7 +108,7 @@ def charger_donnees(sheet):
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
     # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
-    # MODIFICATION : Historique (colonne 9 / I) vient avant Fichiers_Client (colonne 10 / J)
+    # Colonne I (9) = Historique, Colonne J (10) = Fichiers_Client
     nouvelle_ligne = [
         nom, prenom, adresse, ville, code_postal, tel, email, equipement, 
         "[]", # Historique (Colonne 9 / I)
@@ -140,7 +140,7 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     try:
         # On cherche le client par son Nom (colonne 1)
         cellule = sheet.find(nom)
-        # MODIFICATION : Historique est maintenant en COLONNE 9 (I)
+        # Historique est en COLONNE 9 (I)
         sheet.update_cell(cellule.row, 9, historique_txt) 
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
@@ -204,7 +204,6 @@ st.markdown("---")
 
 # --- RECHERCHE (Page par défaut) ---
 if menu == "🔍 Rechercher":
-    # ... (le code Recherche n'a pas besoin d'être modifié)
     st.header("Recherche de Clients Multi-critères")
     recherche = st.text_input("Entrez un terme (Nom, Prénom, Adresse, Ville, CP, Équipement...) :")
     
@@ -292,7 +291,6 @@ if menu == "🔍 Rechercher":
 
 
 elif menu == "➕ Nouveau Client":
-    # ... (le code Nouveau Client)
     st.header("Nouveau Client")
     with st.form("form_nouveau"):
         # Organisation en colonnes
@@ -373,9 +371,10 @@ elif menu == "🛠️ Nouvelle Intervention":
         col_type, col_tech = st.columns(2)
         
         with col_type:
+            # MODIFICATION : Ajout de l'option "Autre"
             type_inter = st.selectbox(
                 "Type d'intervention",
-                ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"],
+                ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique", "Autre"],
                 index=0
             )
 
@@ -386,6 +385,12 @@ elif menu == "🛠️ Nouvelle Intervention":
                 default=[]
             )
             
+        # NOUVEAU : Champ de spécification si "Autre" est sélectionné
+        type_a_enregistrer = type_inter
+        if type_inter == "Autre":
+            type_specifique = st.text_input("Spécifiez le type d'intervention (ex: Ramonage)", key="new_inter_type_specifique")
+            type_a_enregistrer = type_specifique # C'est cette valeur qui sera enregistrée
+        
         date = st.date_input("Date", datetime.now())
         desc = st.text_area("Description de l'intervention")
         prix = st.number_input("Prix (en €)", step=10)
@@ -425,8 +430,11 @@ elif menu == "🛠️ Nouvelle Intervention":
 
         
         if st.button("Valider l'intervention"):
-            # Vérification simple pour s'assurer que l'intervention est assignée à au moins un technicien
-            if not techniciens:
+            # Vérification de la spécification si "Autre" est choisi
+            if type_inter == "Autre" and not type_a_enregistrer.strip():
+                 st.warning("Veuillez spécifier le type d'intervention 'Autre'.")
+                 st.stop()
+            elif not techniciens:
                 st.warning("Veuillez assigner au moins un technicien à l'intervention.")
             else:
                 # Utiliser la valeur finale du champ de liens
@@ -435,7 +443,7 @@ elif menu == "🛠️ Nouvelle Intervention":
                 # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
                 inter = {
                     "date": str(date), 
-                    "type": type_inter,           
+                    "type": type_a_enregistrer, # Utilisation de la valeur spécifiée si "Autre"
                     "techniciens": techniciens,   
                     "desc": desc, 
                     "prix": prix,
@@ -536,8 +544,7 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  
                         sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     
                         sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
-                        
-                        # MODIFICATION : Fichiers Client est maintenant en COLONNE 10 (J)
+                        # Fichiers Client est en COLONNE 10 (J)
                         sheet.update_cell(ligne_a_modifier, 10, final_fichiers_client) 
                         
                         st.success(f"Informations générales du client {client_selectionne} mises à jour !")
@@ -573,6 +580,20 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                 inter_index = options_interventions.index(inter_selectionnee_titre)
                 inter_a_modifier = historique[inter_index]
                 
+                # --- LOGIQUE POUR GÉRER L'OPTION "AUTRE" EXISTANTE ---
+                standard_types = ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"]
+                all_options = standard_types + ["Autre"]
+
+                stored_type = inter_a_modifier.get('type', 'Entretien annuel')
+                is_standard = stored_type in standard_types
+                
+                # Détermine la valeur par défaut pour le selectbox et le champ texte custom
+                default_selectbox_value = stored_type if is_standard else "Autre"
+                custom_type_value = stored_type if not is_standard else "" # Si non standard, stocker la valeur comme type personnalisé
+                
+                # Calcule l'index par défaut dans la liste 'all_options'
+                default_index = all_options.index(default_selectbox_value)
+                
                 with st.form(f"form_modifier_inter_{inter_index}"):
                     
                     col_edit_date, col_edit_prix = st.columns(2)
@@ -585,10 +606,11 @@ elif menu == "✍️ Mettre à jour (Modifier)":
 
                     col_edit_type, col_edit_tech = st.columns(2)
                     with col_edit_type:
+                        # MODIFICATION : Utilisation de la liste complète et de l'index par défaut calculé
                         nouveau_type = st.selectbox(
                             "Type d'intervention",
-                            ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"],
-                            index=["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"].index(inter_a_modifier.get('type', "Entretien annuel")),
+                            all_options,
+                            index=default_index, 
                             key=f"type_{inter_index}_mod"
                         )
                     with col_edit_tech:
@@ -597,6 +619,15 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                             ["Seb", "Colin"],
                             default=inter_a_modifier.get('techniciens', []),
                             key=f"tech_{inter_index}_mod"
+                        )
+                    
+                    # NOUVEAU : Champ de spécification si "Autre" est sélectionné
+                    type_specifique_mod = ""
+                    if nouveau_type == "Autre":
+                        type_specifique_mod = st.text_input(
+                            "Spécifiez le type d'intervention", 
+                            value=custom_type_value, # Pré-rempli avec l'ancien type si c'était "Autre"
+                            key=f"type_specifique_{inter_index}_mod"
                         )
 
                     nouvelle_desc = st.text_area(
@@ -643,13 +674,22 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     sauvegarder_inter = st.form_submit_button("Sauvegarder l'intervention modifiée")
                     
                     if sauvegarder_inter:
+                        
+                        # Déterminer la valeur finale du type d'intervention
+                        type_a_enregistrer = nouveau_type
+                        if nouveau_type == "Autre":
+                            if not type_specifique_mod.strip():
+                                st.warning("Veuillez spécifier le type d'intervention 'Autre'.")
+                                st.stop() # Stop execution if the field is empty
+                            type_a_enregistrer = type_specifique_mod.strip()
+
                         # Utiliser la valeur finale du champ de liens
                         final_fichiers_inter = st.session_state.get(key_inter_files, '')
 
                         # Mettre à jour l'objet dans la liste historique
                         historique[inter_index] = {
                             "date": str(nouvelle_date),
-                            "type": nouveau_type,
+                            "type": type_a_enregistrer, # Utilisation de la valeur finale
                             "techniciens": nouveaux_techniciens,
                             "desc": nouvelle_desc,
                             "prix": nouveau_prix,
@@ -659,7 +699,7 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         # Convertir l'historique mis à jour en JSON
                         historique_txt = json.dumps(historique, ensure_ascii=False)
                         
-                        # MODIFICATION : Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
+                        # Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
                         if update_client_field(sheet, infos_actuelles['nom'], 9, historique_txt):
                             st.success(f"Intervention du {nouvelle_date} mise à jour avec succès.")
                             st.cache_resource.clear()
@@ -749,7 +789,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                     # Convertir l'historique mis à jour en JSON
                     historique_txt_del = json.dumps(historique_del, ensure_ascii=False)
                     
-                    # MODIFICATION : Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
+                    # Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
                     if update_client_field(sheet, infos_actuelles_inter_del['nom'], 9, historique_txt_del):
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
