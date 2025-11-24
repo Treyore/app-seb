@@ -9,16 +9,20 @@ st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="
 
 # --- CONNEXION GOOGLE SHEETS ---
 def connexion_google_sheet():
-    # On définit les droits d'accès
+    # --- CONNEXION GOOGLE SHEETS ---
+def connexion_google_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
     try:
-        # On utilise le fichier secret pour se connecter
-        creds = ServiceAccountCredentials.from_json_keyfile_name("secrets.json", scope)
+        # CAS 1 : On est sur le serveur (Streamlit Cloud)
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        # CAS 2 : On est sur le PC en local
+        else:
+            creds = ServiceAccountCredentials.from_json_keyfile_name("secrets.json", scope)
+            
         client = gspread.authorize(creds)
-        
-        # Ouvre la feuille (Attention: le nom doit être EXACTEMENT celui de votre fichier Google Sheet)
-        # Si votre fichier s'appelle "Base Clients Chauffage", laissez tel quel.
         sheet = client.open("Base Clients Chauffage").sheet1
         return sheet
     except Exception as e:
@@ -138,4 +142,5 @@ elif menu == "🔍 Rechercher":
         else:
             st.write("Rien à signaler.")
     else:
+
         st.warning("Aucun résultat.")
