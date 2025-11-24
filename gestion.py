@@ -8,9 +8,13 @@ import re # Importation du module re pour les expressions régulières/nettoyage
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="wide")
 
+# Initialiser l'état de session pour gérer la page d'entrée
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
 # --- URLs des images pour la page d'accueil ---
-# Utilisation des liens RAW de GitHub pour un affichage stable
-IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba6/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
+# FIX: Mise à jour du lien RAW de la première image
+IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/c81b77576a13beee81e9d69f3f06f95842a34bb5/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
 IMAGE_URL_2 = "https://raw.githubusercontent.com/Treyore/app-seb/92e1af7d7313f8df3cbc3ec186b5228764c23ba7/seb%20lunettes%20soleil.webp"
 
 
@@ -32,14 +36,13 @@ def connexion_google_sheet():
             
         client = gspread.authorize(creds)
         # Ouvre la feuille (assurez-vous que le nom correspond à votre feuille)
-        # NOTE : Si vous avez modifié la feuille, il faudra ajuster l'index ou le nom
         sheet = client.open("Base Clients Chauffage").sheet1 
         return sheet
     except Exception as e:
         st.error(f"Erreur de connexion : {e}")
         st.stop()
 
-# --- FONCTIONS ---
+# --- FONCTIONS (inchangées) ---
 # Charger les données sans cache Streamlit pour éviter les problèmes d'hachage avec gspread
 def charger_donnees(sheet):
     # Récupère toutes les lignes du tableau
@@ -149,29 +152,12 @@ def supprimer_client_sheet(sheet, nom_client):
 # 1. Connexion (doit être en dehors de la boucle du menu)
 sheet = connexion_google_sheet()
 
-# 2. Menu
-# Ajout de "🏡 Accueil" et définition de l'ordre par défaut.
-menu = st.sidebar.radio(
-    "Menu", 
-    ("🏡 Accueil", "🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"),
-    # Définir l'index pour que la page d'accueil soit celle par défaut
-    index=0 
-)
-
-# 3. Chargement des données (uniquement si ce n'est pas la page d'accueil, bien que le cache le rende rapide)
-if menu != "🏡 Accueil":
-    db = charger_donnees(sheet)
-else:
-    db = {} # Pas besoin de charger les données pour l'accueil
-
-st.title("🔥 App Chauffagiste - Connectée")
-st.markdown("---")
-
 # ------------------------------------------------------------------
-# --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
+# --- GESTION DE LA PAGE D'ENTRÉE ---
 # ------------------------------------------------------------------
-
-if menu == "🏡 Accueil":
+if not st.session_state.logged_in:
+    st.title("🔥 App Chauffagiste - Connectée")
+    st.markdown("---")
     st.header("Bienvenue Seb")
     st.markdown("## Votre tableau de bord de gestion client et interventions.")
     st.markdown("---")
@@ -186,7 +172,43 @@ if menu == "🏡 Accueil":
         st.image(IMAGE_URL_2, caption="Le boss !", use_column_width=True)
         
     st.markdown("---")
-    st.info("Utilisez le menu à gauche pour naviguer entre les fonctionnalités : Recherche, Ajout de clients et Modification/Mise à jour.")
+    
+    if st.button("Merci Ilune (Démarrer l'application)", type="primary"):
+        st.session_state.logged_in = True
+        st.rerun() # Recharge la page pour afficher le menu et l'appli principale
+
+    # Arrêter l'exécution du reste du script tant que le bouton n'est pas cliqué
+    st.stop()
+    
+# ------------------------------------------------------------------
+# --- APPLICATION PRINCIPALE (Affiche uniquement si logged_in est True) ---
+# ------------------------------------------------------------------
+
+# 2. Menu (maintenant visible dans la sidebar)
+menu = st.sidebar.radio(
+    "Menu", 
+    ("🏡 Accueil", "🔍 Rechercher", "➕ Nouveau Client", "🛠️ Nouvelle Intervention", "✍️ Mettre à jour Client"),
+    # Après login, la page de recherche sera la page par défaut
+    index=1 
+)
+
+# 3. Chargement des données (uniquement si ce n'est pas la page d'accueil, bien que le cache le rende rapide)
+# On charge les données si on est sur n'importe quelle page fonctionnelle.
+if menu == "🏡 Accueil":
+    db = {} # Pas besoin de charger les données pour l'accueil simple
+else:
+    db = charger_donnees(sheet)
+
+st.title("🔥 App Chauffagiste - Connectée")
+st.markdown("---")
+
+# ------------------------------------------------------------------
+# --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
+# ------------------------------------------------------------------
+
+if menu == "🏡 Accueil":
+    st.header("Tableau de Bord")
+    st.info("Bienvenue dans votre application de gestion. Utilisez le menu à gauche pour naviguer !")
 
 
 elif menu == "➕ Nouveau Client":
