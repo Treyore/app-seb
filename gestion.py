@@ -107,26 +107,18 @@ def charger_donnees(sheet):
     return db
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
-    # Ajout de la ligne
-    nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, "[]", fichiers_client]
+    # L'ordre des colonnes est : Nom, Prenom, Adresse, Ville, CP, Tel, Email, Equipement, Historique (9), Fichiers_Client (10)
+    nouvelle_ligne = [
+        nom, prenom, adresse, ville, code_postal, tel, email, equipement, 
+        "[]", 
+        fichiers_client 
+    ]
     sheet.append_row(nouvelle_ligne)
-    
-    # 1. Message de succès
-    st.session_state['succes_ajout'] = f"✅ Client {nom} {prenom} ajouté avec succès !"
 
-    # 2. VIDAGE FORCÉ DES CASES (RESET)
-    # On force chaque case à devenir vide
-    st.session_state["nc_nom"] = ""
-    st.session_state["nc_prenom"] = ""
-    st.session_state["nc_adresse"] = ""
-    st.session_state["nc_ville"] = ""
-    st.session_state["nc_code_postal"] = ""
-    st.session_state["nc_telephone"] = ""
-    st.session_state["nc_email"] = ""
-    st.session_state["nc_equipement"] = ""
-    st.session_state["text_client_add"] = ""
-    # Pour le fichier, on met None
-    st.session_state["file_client_add"] = None
+    # Message de succès (CONSERVÉ)
+    st.session_state["succes_ajout"] = f"✅ Client {nom} {prenom} ajouté avec succès !"
+
+    # Le nettoyage des champs est géré par clear_on_submit=True.
 
     st.cache_resource.clear()
     st.rerun()
@@ -151,23 +143,23 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     
     try:
         cellule = sheet.find(nom)
+        # Historique est en COLONNE 9 (I)
         sheet.update_cell(cellule.row, 9, historique_txt) 
         
-        # 1. Message de succès
-        st.session_state['succes_ajout'] = f"✅ Intervention ajoutée pour {nom} !"
-
-        # 2. VIDAGE FORCÉ DES CASES (RESET)
-        st.session_state["inter_desc"] = ""
-        st.session_state["inter_type_specifique"] = ""
-        st.session_state["text_inter_add"] = ""
-        st.session_state["inter_prix"] = 0.0      # Zéro pour les chiffres
-        st.session_state["inter_techs"] = []      # Liste vide pour multiselect
-        st.session_state["file_inter_add"] = None # Rien pour le fichier
-        # On remet la date à aujourd'hui
-        st.session_state["inter_date"] = datetime.now()
+        # Message de succès
+        st.session_state['succes_ajout'] = "✅ Intervention ajoutée avec succès !"
+        
+        # MODIFICATION : Nettoyage FORCÉ des champs d'intervention (Assignation plutôt que del)
+        if "inter_desc" in st.session_state: st.session_state["inter_desc"] = ""
+        if "inter_prix" in st.session_state: st.session_state["inter_prix"] = 0.0
+        if "inter_type_specifique" in st.session_state: st.session_state["inter_type_specifique"] = ""
+        if "text_inter_add" in st.session_state: st.session_state["text_inter_add"] = ""
+        if "inter_techs" in st.session_state: st.session_state["inter_techs"] = []
+        if "file_inter_add" in st.session_state: st.session_state["file_inter_add"] = None
+        # La date et le client se réinitialisent correctement au rerun.
 
     except:
-        st.error("Impossible de retrouver la ligne du client.")
+        st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
     st.cache_resource.clear()
     st.rerun()
@@ -319,7 +311,7 @@ if menu == "🔍 Rechercher":
 
 elif menu == "➕ Nouveau Client":
     st.header("Nouveau Client")
-    with st.form("form_nouveau"):
+    with st.form("form_nouveau", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         # NOTEZ BIEN LES 'key=' CI-DESSOUS
@@ -782,6 +774,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
