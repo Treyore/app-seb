@@ -114,7 +114,7 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
         "[]", # Historique (Colonne 9 / I)
         fichiers_client # Fichiers_Client (Colonne 10 / J)
     ]
-       sheet.append_row(nouvelle_ligne)
+    sheet.append_row(nouvelle_ligne)
 
     # Message de succès
     st.session_state["succes_ajout"] = f"Client {nom} {prenom} ajouté avec succès !"
@@ -847,6 +847,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
