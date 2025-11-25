@@ -672,7 +672,12 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}_mod")
                     
                     with col_edit_prix:
-                        nouveau_prix = st.number_input("Prix (€)", value=float(inter_a_modifier['prix']), step=10.0, key=f"prix_{inter_index}_mod")
+                        nouveau_prix = st.number_input(
+    "Prix (€)", 
+    value=float(inter_a_modifier['prix']), 
+    step=10.0, 
+    key=f"prix_{inter_index}_mod"
+)
 
                     col_edit_type, col_edit_tech = st.columns(2)
                     with col_edit_type:
@@ -864,6 +869,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
