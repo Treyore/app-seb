@@ -114,28 +114,27 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
         "[]", # Historique (Colonne 9 / I)
         fichiers_client # Fichiers_Client (Colonne 10 / J)
     ]
-    sheet.append_row(nouvelle_ligne)
-    
-       # Message de succès dans la session
-    st.session_state['succes_ajout'] = f"Client {nom} {prenom} ajouté avec succès !"
-    
-    # RESET du formulaire "Nouveau Client"
-    champs_client = [
-        "new_nom",
-        "new_prenom",
-        "new_adresse",
-        "new_ville",
-        "new_code_postal",
-        "new_telephone",
-        "new_email",
-        "new_equipement",
+       sheet.append_row(nouvelle_ligne)
+
+    # Message de succès
+    st.session_state["succes_ajout"] = f"Client {nom} {prenom} ajouté avec succès !"
+
+    # Vider tous les champs du formulaire "Nouveau Client"
+    for cle in [
+        "nc_nom",
+        "nc_prenom",
+        "nc_adresse",
+        "nc_ville",
+        "nc_code_postal",
+        "nc_telephone",
+        "nc_email",
+        "nc_equipement",
         "text_client_add",   # textarea liens client
-        "file_client_add"    # file_uploader client
-    ]
-    for cle in champs_client:
+        "file_client_add",   # file_uploader client
+    ]:
         if cle in st.session_state:
             del st.session_state[cle]
-    
+
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
     st.rerun()
@@ -169,17 +168,19 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
         st.session_state['succes_ajout'] = "Intervention ajoutée avec succès !"
         
         # MODIFICATION : Nettoyage des champs du formulaire d'intervention
+        # MODIFICATION : Nettoyage des champs du formulaire d'intervention
         cles_a_vider = [
-            'inter_desc',          # textarea description
-            'inter_prix',          # number_input prix
-            'inter_type_specifique',  # input "Autre"
-            'text_inter_add',      # textarea liens fichiers
-            'inter_techs',         # multiselect techniciens
-            'inter_type_select',   # selectbox type
-            'inter_client_select', # selectbox client
-            'inter_date',          # date_input
-            'file_inter_add'       # file_uploader intervention
+            "inter_desc",
+            "inter_prix",
+            "inter_type_specifique",
+            "text_inter_add",
+            "inter_techs",
+            "inter_type_select",
+            "inter_client_select",
+            "inter_date",
+            "file_inter_add",
         ]
+
         for cle in cles_a_vider:
             if cle in st.session_state:
                 del st.session_state[cle]
@@ -345,16 +346,17 @@ elif menu == "➕ Nouveau Client":
         col1, col2 = st.columns(2)
         
         with col1:
-            nom = st.text_input("Nom", key="new_nom")
-            adresse = st.text_input("Adresse", key="new_adresse")
-            code_postal = st.text_input("Code Postal", key="new_code_postal")
-            telephone = st.text_input("Téléphone", key="new_telephone")
+            nom = st.text_input("Nom", key="nc_nom")
+            adresse = st.text_input("Adresse", key="nc_adresse")
+            code_postal = st.text_input("Code Postal", key="nc_code_postal")
+            telephone = st.text_input("Téléphone", key="nc_telephone")
             
         with col2:
-            prenom = st.text_input("Prénom", key="new_prenom")
-            ville = st.text_input("Ville", key="new_ville")
-            email = st.text_input("Email", key="new_email")
-            equipement = st.text_input("Équipement (Chaudière, PAC, etc.)", key="new_equipement")
+            prenom = st.text_input("Prénom", key="nc_prenom")
+            ville = st.text_input("Ville", key="nc_ville")
+            email = st.text_input("Email", key="nc_email")
+            equipement = st.text_input("Équipement (Chaudière, PAC, etc.)", key="nc_equipement")
+
 
         st.markdown("---")
         st.subheader("Fichiers Client")
@@ -845,5 +847,6 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
