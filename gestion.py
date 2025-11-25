@@ -107,27 +107,26 @@ def charger_donnees(sheet):
     return db
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
-    # Ajout de la ligne (Historique en 9, Fichiers en 10)
-    nouvelle_ligne = [
-        nom, prenom, adresse, ville, code_postal, tel, email, equipement, 
-        "[]", 
-        fichiers_client
-    ]
+    # Ajout de la ligne
+    nouvelle_ligne = [nom, prenom, adresse, ville, code_postal, tel, email, equipement, "[]", fichiers_client]
     sheet.append_row(nouvelle_ligne)
-
+    
     # 1. Message de succès
     st.session_state['succes_ajout'] = f"✅ Client {nom} {prenom} ajouté avec succès !"
 
-    # 2. VIDAGE DES CASES (RESET)
-    # On supprime les valeurs de la mémoire pour que les cases redeviennent vides
-    keys_a_vider = [
-        "nc_nom", "nc_prenom", "nc_adresse", "nc_ville", 
-        "nc_code_postal", "nc_telephone", "nc_email", "nc_equipement",
-        "text_client_add", "file_client_add"
-    ]
-    for key in keys_a_vider:
-        if key in st.session_state:
-            del st.session_state[key]
+    # 2. VIDAGE FORCÉ DES CASES (RESET)
+    # On force chaque case à devenir vide
+    st.session_state["nc_nom"] = ""
+    st.session_state["nc_prenom"] = ""
+    st.session_state["nc_adresse"] = ""
+    st.session_state["nc_ville"] = ""
+    st.session_state["nc_code_postal"] = ""
+    st.session_state["nc_telephone"] = ""
+    st.session_state["nc_email"] = ""
+    st.session_state["nc_equipement"] = ""
+    st.session_state["text_client_add"] = ""
+    # Pour le fichier, on met None
+    st.session_state["file_client_add"] = None
 
     st.cache_resource.clear()
     st.rerun()
@@ -152,24 +151,23 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     
     try:
         cellule = sheet.find(nom)
-        # Historique est en COLONNE 9
         sheet.update_cell(cellule.row, 9, historique_txt) 
         
         # 1. Message de succès
         st.session_state['succes_ajout'] = f"✅ Intervention ajoutée pour {nom} !"
 
-        # 2. VIDAGE DES CASES (RESET)
-        keys_a_vider = [
-            "inter_desc", "inter_prix", "inter_type_specifique", 
-            "text_inter_add", "inter_techs", "inter_date", "file_inter_add"
-            # On ne vide pas le client ou le type par défaut pour éviter des bugs visuels
-        ]
-        for key in keys_a_vider:
-            if key in st.session_state:
-                del st.session_state[key]
+        # 2. VIDAGE FORCÉ DES CASES (RESET)
+        st.session_state["inter_desc"] = ""
+        st.session_state["inter_type_specifique"] = ""
+        st.session_state["text_inter_add"] = ""
+        st.session_state["inter_prix"] = 0.0      # Zéro pour les chiffres
+        st.session_state["inter_techs"] = []      # Liste vide pour multiselect
+        st.session_state["file_inter_add"] = None # Rien pour le fichier
+        # On remet la date à aujourd'hui
+        st.session_state["inter_date"] = datetime.now()
 
     except:
-        st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
+        st.error("Impossible de retrouver la ligne du client.")
         
     st.cache_resource.clear()
     st.rerun()
@@ -324,8 +322,8 @@ elif menu == "➕ Nouveau Client":
     with st.form("form_nouveau"):
         col1, col2 = st.columns(2)
         
+        # NOTEZ BIEN LES 'key=' CI-DESSOUS
         with col1:
-            # AJOUT DES CLÉS (key) pour identifier les cases
             nom = st.text_input("Nom", key="nc_nom")
             adresse = st.text_input("Adresse", key="nc_adresse")
             code_postal = st.text_input("Code Postal", key="nc_code_postal")
@@ -336,26 +334,24 @@ elif menu == "➕ Nouveau Client":
             ville = st.text_input("Ville", key="nc_ville")
             email = st.text_input("Email", key="nc_email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)", key="nc_equipement")
-
+        
         st.markdown("---")
         st.subheader("Fichiers Client")
         
         uploaded_file_client = st.file_uploader(
-            "Téléverser un document client (max 5 Mo)", 
+            "Téléverser un document client", 
             key="file_client_add",
-            accept_multiple_files=False,
             type=['pdf', 'jpg', 'jpeg', 'png']
         )
         
         if 'text_client_add' not in st.session_state: st.session_state.text_client_add = ""
         fichiers_client = st.text_area(
-            "Liens Fichiers Client (Liens existants, ou liens générés après téléversement)", 
+            "Liens Fichiers Client", 
             height=100,
             key="text_client_add",
             value=st.session_state.text_client_add
         )
         
-        # Bouton upload
         if uploaded_file_client:
             if st.form_submit_button("Générer lien fichier (Cliquer avant d'enregistrer)"):
                 new_link = handle_upload(uploaded_file_client)
@@ -372,31 +368,23 @@ elif menu == "➕ Nouveau Client":
             if nom_complet in db:
                 st.warning(f"Le client {nom_complet} existe déjà dans la base.")
             else:
-                # Appel de la fonction modifiée qui videra les cases
                 ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
 
 
 elif menu == "🛠️ Nouvelle Intervention":
     st.header("Nouvelle Intervention")
     if db:
-        # Triage de la liste des clients pour le selectbox
-        # MODIFICATION : Ajout d'une clé pour pouvoir vider le champ
         choix = st.selectbox("Client", sorted(db.keys()), key="inter_client_select")
         
-        # CHAMPS
         col_type, col_tech = st.columns(2)
-        
         with col_type:
-            # MODIFICATION : Ajout de l'option "Autre" et d'une clé
             type_inter = st.selectbox(
                 "Type d'intervention",
                 ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique", "Autre"],
-                index=0,
                 key="inter_type_select"
             )
 
         with col_tech:
-            # MODIFICATION : Ajout d'une clé
             techniciens = st.multiselect(
                 "Technicien(s) assigné(s)",
                 ["Seb", "Colin"],
@@ -404,77 +392,58 @@ elif menu == "🛠️ Nouvelle Intervention":
                 key="inter_techs"
             )
             
-        # NOUVEAU : Champ de spécification si "Autre" est sélectionné
         type_a_enregistrer = type_inter
         if type_inter == "Autre":
-            # MODIFICATION : Clé renommée pour correspondre au nettoyage
-            type_specifique = st.text_input("Spécifiez le type d'intervention (ex: Ramonage)", key="inter_type_specifique")
-            type_a_enregistrer = type_specifique # C'est cette valeur qui sera enregistrée
+            type_specifique = st.text_input("Spécifiez le type d'intervention", key="inter_type_specifique")
+            type_a_enregistrer = type_specifique
         
-        # MODIFICATION : Ajout de clés pour les champs
         date = st.date_input("Date", datetime.now(), key="inter_date")
         desc = st.text_area("Description de l'intervention", key="inter_desc")
-        prix = st.number_input("Prix (en €)", step=10, key="inter_prix")
+        prix = st.number_input("Prix (en €)", step=10.0, key="inter_prix")
         
         st.markdown("---")
         st.subheader("Fichiers Intervention")
         
-        # NOUVEAU: Champ de téléversement pour l'intervention
         uploaded_file_inter = st.file_uploader(
-            "Téléverser un document d'intervention (max 5 Mo)", 
+            "Téléverser un document", 
             key="file_inter_add",
-            accept_multiple_files=False,
             type=['pdf', 'jpg', 'jpeg', 'png']
         )
 
-        # CHAMP FICHIER INTERVENTION
+        if 'text_inter_add' not in st.session_state: st.session_state.text_inter_add = ""
         fichiers_inter = st.text_area(
-            "Liens Fichiers Intervention (Facture, Photo des travaux, etc.)", 
+            "Liens Fichiers Intervention", 
             height=80,
             key="text_inter_add",
-            value="" # Assurez-vous que la valeur initiale est vide
+            value=st.session_state.text_inter_add
         )
         
-        # Logique de gestion de l'upload pour l'intervention
         if uploaded_file_inter:
-            if st.button("Ajouter le document téléversé aux liens intervention", key="btn_upload_inter_add"): # Clé unique
+            if st.button("Générer lien fichier (Cliquer avant d'enregistrer)"):
                 new_link = handle_upload(uploaded_file_inter)
                 if new_link:
-                    current_links = st.session_state.text_inter_add.strip()
-                    if current_links:
-                        st.session_state.text_inter_add = current_links + f"\n{new_link}"
-                    else:
-                        st.session_state.text_inter_add = new_link
-                    
-                    # Force le champ à se mettre à jour visuellement
+                    st.session_state.text_inter_add += f"\n{new_link}"
                     st.rerun() 
 
         
         if st.button("Valider l'intervention"):
-            # Vérification de la spécification si "Autre" est choisi
             if type_inter == "Autre" and not type_a_enregistrer.strip():
                  st.warning("Veuillez spécifier le type d'intervention 'Autre'.")
-                 st.stop()
             elif not techniciens:
-                st.warning("Veuillez assigner au moins un technicien à l'intervention.")
+                st.warning("Veuillez assigner au moins un technicien.")
             else:
-                # Utiliser la valeur finale du champ de liens
-                final_fichiers_inter = st.session_state.get('text_inter_add', '') # Utiliser get() avec une valeur par défaut
-
-                # MISE À JOUR : Ajout des nouvelles informations dans le dictionnaire
+                final_fichiers_inter = st.session_state.get('text_inter_add', '') 
                 inter = {
                     "date": str(date), 
-                    "type": type_a_enregistrer, # Utilisation de la valeur spécifiée si "Autre"
+                    "type": type_a_enregistrer, 
                     "techniciens": techniciens,   
                     "desc": desc, 
                     "prix": prix,
-                    "fichiers_inter": final_fichiers_inter # Nouveau champ
+                    "fichiers_inter": final_fichiers_inter 
                 }
                 ajouter_inter_sheet(sheet, choix, db, inter)
-                # Le st.success et le nettoyage sont gérés dans ajouter_inter_sheet
     else:
-        st.info("La base est vide. Veuillez ajouter un client d'abord.")
-
+        st.info("La base est vide.")
 # ------------------------------------------------------------------
 # --- BLOC : MISE À JOUR (MODIFIER) ---
 # ------------------------------------------------------------------
@@ -813,6 +782,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
