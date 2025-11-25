@@ -115,6 +115,12 @@ def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal
         fichiers_client # Fichiers_Client (Colonne 10 / J)
     ]
     sheet.append_row(nouvelle_ligne)
+    
+    # MODIFICATION : Message de succès dans la session + nettoyage lien fichier
+    st.session_state['succes_ajout'] = f"Client {nom} {prenom} ajouté avec succès !"
+    if 'text_client_add' in st.session_state:
+        del st.session_state.text_client_add # Nettoie le champ liens
+        
     # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
     st.rerun()
@@ -142,6 +148,19 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
         cellule = sheet.find(nom)
         # Historique est en COLONNE 9 (I)
         sheet.update_cell(cellule.row, 9, historique_txt) 
+        
+        # MODIFICATION : Message de succès dans la session
+        st.session_state['succes_ajout'] = "Intervention ajoutée avec succès !"
+        
+        # MODIFICATION : Nettoyage des champs du formulaire d'intervention
+        cles_a_vider = [
+            'inter_desc', 'inter_prix', 'inter_type_specifique', 'text_inter_add', 
+            'inter_techs', 'inter_type_select', 'inter_client_select'
+        ]
+        for cle in cles_a_vider:
+            if cle in st.session_state:
+                del st.session_state[cle]
+
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
@@ -197,6 +216,12 @@ db = charger_donnees(sheet)
 
 st.title(APP_TITLE)
 st.markdown("---")
+
+# MODIFICATION : Affichage du message de succès s'il existe dans la session
+if 'succes_ajout' in st.session_state:
+    st.success(st.session_state['succes_ajout'])
+    # On supprime le message pour qu'il ne reste pas affiché indéfiniment
+    del st.session_state['succes_ajout']
 
 # ------------------------------------------------------------------
 # --- LOGIQUE D'AFFICHAGE SELON LE MENU ---
@@ -356,44 +381,49 @@ elif menu == "➕ Nouveau Client":
                 st.warning(f"Le client {nom_complet} existe déjà dans la base.")
             else:
                 ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
-                st.success(f"Client {nom_complet} ajouté !")
-                # Nettoyer l'état de session après l'ajout
-                if 'text_client_add' in st.session_state: del st.session_state.text_client_add
+                # Le st.success est géré dans ajouter_nouveau_client_sheet maintenant
+                # Les champs du formulaire seront vidés au rechargement (comportement par défaut des forms)
 
 
 elif menu == "🛠️ Nouvelle Intervention":
     st.header("Nouvelle Intervention")
     if db:
         # Triage de la liste des clients pour le selectbox
-        choix = st.selectbox("Client", sorted(db.keys()))
+        # MODIFICATION : Ajout d'une clé pour pouvoir vider le champ
+        choix = st.selectbox("Client", sorted(db.keys()), key="inter_client_select")
         
         # CHAMPS
         col_type, col_tech = st.columns(2)
         
         with col_type:
-            # MODIFICATION : Ajout de l'option "Autre"
+            # MODIFICATION : Ajout de l'option "Autre" et d'une clé
             type_inter = st.selectbox(
                 "Type d'intervention",
                 ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique", "Autre"],
-                index=0
+                index=0,
+                key="inter_type_select"
             )
 
         with col_tech:
+            # MODIFICATION : Ajout d'une clé
             techniciens = st.multiselect(
                 "Technicien(s) assigné(s)",
                 ["Seb", "Colin"],
-                default=[]
+                default=[],
+                key="inter_techs"
             )
             
         # NOUVEAU : Champ de spécification si "Autre" est sélectionné
         type_a_enregistrer = type_inter
         if type_inter == "Autre":
-            type_specifique = st.text_input("Spécifiez le type d'intervention (ex: Ramonage)", key="new_inter_type_specifique")
+            # MODIFICATION : Clé renommée pour correspondre au nettoyage
+            type_specifique = st.text_input("Spécifiez le type d'intervention (ex: Ramonage)", key="inter_type_specifique")
             type_a_enregistrer = type_specifique # C'est cette valeur qui sera enregistrée
         
-        date = st.date_input("Date", datetime.now())
-        desc = st.text_area("Description de l'intervention")
-        prix = st.number_input("Prix (en €)", step=10)
+        # MODIFICATION : Ajout de clés pour les champs
+        date = st.date_input("Date", datetime.now(), key="inter_date")
+        desc = st.text_area("Description de l'intervention", key="inter_desc")
+        prix = st.number_input("Prix (en €)", step=10, key="inter_prix")
         
         st.markdown("---")
         st.subheader("Fichiers Intervention")
@@ -450,9 +480,7 @@ elif menu == "🛠️ Nouvelle Intervention":
                     "fichiers_inter": final_fichiers_inter # Nouveau champ
                 }
                 ajouter_inter_sheet(sheet, choix, db, inter)
-                st.success("Intervention sauvegardée en ligne !")
-                # Nettoyer l'état de session après l'ajout
-                if 'text_inter_add' in st.session_state: del st.session_state.text_inter_add
+                # Le st.success et le nettoyage sont gérés dans ajouter_inter_sheet
     else:
         st.info("La base est vide. Veuillez ajouter un client d'abord.")
 
@@ -794,4 +822,3 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
-
