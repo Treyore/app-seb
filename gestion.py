@@ -11,7 +11,7 @@ st.set_page_config(page_title="Gestion Chauffagiste", page_icon="🔥", layout="
 
 # --- CONSTANTES ---
 # NOUVEAU TITRE de l'application
-APP_TITLE = "🔥 SEBApp le chauffagiste connectée"
+APP_TITLE = "🔥 SEBApp le chauffagiste connecté"
 
 # --- URLs des images pour la page d'accueil (Non utilisées, mais conservées dans le code) ---
 IMAGE_URL_1 = "https://raw.githubusercontent.com/Treyore/app-seb/c81b77576a13beee81e9d69f3f06f95842a34bb5/WhatsApp%20Image%202025-11-24%20at%2016.08.53.jpeg"
@@ -822,3 +822,4 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
