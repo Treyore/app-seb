@@ -149,17 +149,20 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
         # Message de succès
         st.session_state['succes_ajout'] = "✅ Intervention ajoutée avec succès !"
         
-        # MODIFICATION : Nettoyage FORCÉ des champs d'intervention (Assignation plutôt que del)
-        if "inter_desc" in st.session_state: st.session_state["inter_desc"] = ""
-        if "inter_prix" in st.session_state: st.session_state["inter_prix"] = 0.0
-        if "inter_type_specifique" in st.session_state: st.session_state["inter_type_specifique"] = ""
-        if "text_inter_add" in st.session_state: st.session_state["text_inter_add"] = ""
-        if "inter_techs" in st.session_state: st.session_state["inter_techs"] = []
-        if "file_inter_add" in st.session_state: st.session_state["file_inter_add"] = None
-        # La date et le client se réinitialisent correctement au rerun.
+        # MODIFICATION : NETTOYAGE AGRESSIF (SUPPRESSION DES CLÉS)
+        # Cela force Streamlit à réinitialiser les widgets au rerun.
+        if "inter_desc" in st.session_state: del st.session_state["inter_desc"]
+        if "inter_prix" in st.session_state: del st.session_state["inter_prix"]
+        if "inter_type_specifique" in st.session_state: del st.session_state["inter_type_specifique"]
+        if "text_inter_add" in st.session_state: del st.session_state["text_inter_add"]
+        if "inter_techs" in st.session_state: del st.session_state["inter_techs"]
+        if "file_inter_add" in st.session_state: del st.session_state["file_inter_add"]
+        # On supprime aussi la date pour la réinitialiser au datetime.now()
+        if "inter_date" in st.session_state: del st.session_state["inter_date"]
 
-    except:
-        st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
+    except Exception as e:
+        # Capture de l'erreur pour ne pas bloquer le rerun
+        st.error(f"Erreur lors de la mise à jour de la feuille : {e}")
         
     st.cache_resource.clear()
     st.rerun()
@@ -774,6 +777,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
