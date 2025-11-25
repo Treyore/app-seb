@@ -457,52 +457,21 @@ elif menu == "✍️ Mettre à jour (Modifier)":
             # --- BLOC 1 : Modification des Informations Client ---
             st.subheader(f"1. Informations Générales de {client_selectionne}")
             
-            # Utilisation de form_update_client_general pour éviter les conflits de clés
-           # Utilisation de form_update_client_general pour éviter les conflits de clés
             with st.form("form_update_client_general"): 
                 col1_up, col2_up = st.columns(2)
                 
-                # ASTUCE : On ajoute _{client_selectionne} à la fin de chaque 'key'.
-                # Cela force Streamlit à recréer les champs quand on change de client
-                # et donc à afficher les bonnes valeurs !
-                
+                # AJOUT DE _{client_selectionne} aux clés pour forcer le rafraîchissement
                 with col1_up:
                     st.text_input("Nom (Clé)", value=infos_actuelles['nom'], disabled=True)
-                    
-                    nouvelle_adresse = st.text_input(
-                        "Adresse", 
-                        value=infos_actuelles['adresse'], 
-                        key=f"addr_upd_{client_selectionne}" # Clé dynamique
-                    )
-                    nouveau_code_postal = st.text_input(
-                        "Code Postal", 
-                        value=infos_actuelles['code_postal'], 
-                        key=f"cp_upd_{client_selectionne}" # Clé dynamique
-                    )
-                    nouveau_telephone = st.text_input(
-                        "Téléphone", 
-                        value=infos_actuelles['telephone'], 
-                        key=f"tel_upd_{client_selectionne}" # Clé dynamique
-                    )
+                    nouvelle_adresse = st.text_input("Adresse", value=infos_actuelles['adresse'], key=f"addr_upd_{client_selectionne}")
+                    nouveau_code_postal = st.text_input("Code Postal", value=infos_actuelles['code_postal'], key=f"cp_upd_{client_selectionne}")
+                    nouveau_telephone = st.text_input("Téléphone", value=infos_actuelles['telephone'], key=f"tel_upd_{client_selectionne}")
                     
                 with col2_up:
                     st.text_input("Prénom (Clé)", value=infos_actuelles['prenom'], disabled=True)
-                    
-                    nouvelle_ville = st.text_input(
-                        "Ville", 
-                        value=infos_actuelles['ville'], 
-                        key=f"ville_upd_{client_selectionne}" # Clé dynamique
-                    )
-                    nouvel_email = st.text_input(
-                        "Email", 
-                        value=infos_actuelles['email'], 
-                        key=f"email_upd_{client_selectionne}" # Clé dynamique
-                    )
-                    nouvel_equipement = st.text_input(
-                        "Équipement", 
-                        value=infos_actuelles['equipement'], 
-                        key=f"eq_upd_{client_selectionne}" # Clé dynamique
-                    )
+                    nouvelle_ville = st.text_input("Ville", value=infos_actuelles['ville'], key=f"ville_upd_{client_selectionne}")
+                    nouvel_email = st.text_input("Email", value=infos_actuelles['email'], key=f"email_upd_{client_selectionne}")
+                    nouvel_equipement = st.text_input("Équipement", value=infos_actuelles['equipement'], key=f"eq_upd_{client_selectionne}")
                 
                 st.markdown("---")
                 st.subheader("Fichiers Client")
@@ -510,24 +479,24 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                 # Upload fichier pour modif
                 uploaded_file_client_update = st.file_uploader(
                     "Téléverser un nouveau document client (max 5 Mo)", 
-                    key=f"file_client_update_{client_selectionne}", # Clé dynamique ici aussi par sécurité
+                    key=f"file_client_update_{client_selectionne}", 
                     accept_multiple_files=False,
                     type=['pdf', 'jpg', 'jpeg', 'png']
                 )
 
-                
-                # On initialise la mémoire si elle n'existe pas encore pour ce client
+                # Gestion des liens fichiers
+                key_client_files = f'text_client_update_{client_selectionne}_general'
                 if key_client_files not in st.session_state:
                      st.session_state[key_client_files] = infos_actuelles.get('fichiers_client', '')
 
-                # CORRECTION : On retire 'value=...' car la 'key' suffit à Streamlit pour trouver la valeur
+                # Zone de texte unique (PAS DE value=... pour éviter l'erreur)
                 nouveaux_fichiers_client = st.text_area(
                     "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
                     height=100,
                     key=key_client_files 
                 )
                 
-                # Logique upload (inchangée mais adaptée aux clés dynamiques si besoin)
+                # Logique upload à l'intérieur du formulaire
                 if uploaded_file_client_update:
                     if st.form_submit_button("Générer lien fichier (Modif)"):
                         new_link = handle_upload(uploaded_file_client_update)
@@ -541,11 +510,9 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     final_fichiers_client = st.session_state.get(key_client_files, '')
                     
                     try:
-                        # 1. On cherche la ligne du client (par son Nom)
                         cellule = sheet.find(infos_actuelles['nom'])
                         ligne_a_modifier = cellule.row
                         
-                        # 2. On met à jour les champs
                         sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
                         sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
                         sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
@@ -554,78 +521,12 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
                         sheet.update_cell(ligne_a_modifier, 10, final_fichiers_client) 
                         
-                        st.success(f"Informations générales du client {client_selectionne} mises à jour !")
-                        
+                        st.success(f"Informations générales mises à jour !")
                         st.cache_resource.clear()
                         st.rerun()
                         
                     except Exception as e:
-                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
-                
-                # NOUVEAU: Champ de téléversement pour la modification client
-                uploaded_file_client_update = st.file_uploader(
-                    "Téléverser un nouveau document client (max 5 Mo)", 
-                    key="file_client_update_general", # Clé générique pour ce menu
-                    accept_multiple_files=False,
-                    type=['pdf', 'jpg', 'jpeg', 'png']
-                )
-
-                # NOUVEAU CHAMP DE FICHIERS CLIENT
-                # Utilisation d'une clé session pour la mise à jour dynamique
-              # ... (code précédent inchangé)
-                key_client_files = f'text_client_update_{client_selectionne}_general'
-                
-                # On initialise la mémoire si elle n'existe pas encore pour ce client
-                if key_client_files not in st.session_state:
-                     st.session_state[key_client_files] = infos_actuelles.get('fichiers_client', '')
-
-                # CORRECTION : On retire 'value=...' car la 'key' suffit à Streamlit pour trouver la valeur
-                nouveaux_fichiers_client = st.text_area(
-                    "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
-                    height=100,
-                    key=key_client_files 
-                )
-                # Logique de gestion de l'upload pour la modification client
-                if uploaded_file_client_update:
-                    if st.button("Ajouter le document téléversé aux liens client (Modif)", key="btn_upload_client_update_general"):
-                        new_link = handle_upload(uploaded_file_client_update)
-                        if new_link:
-                            current_links = st.session_state[key_client_files].strip()
-                            if current_links:
-                                st.session_state[key_client_files] = current_links + f"\n{new_link}"
-                            else:
-                                st.session_state[key_client_files] = new_link
-                            
-                            st.rerun() 
-
-                
-                update_valider = st.form_submit_button("Sauvegarder les modifications Client")
-                
-                if update_valider:
-                    final_fichiers_client = st.session_state.get(key_client_files, '')
-                    
-                    try:
-                        # 1. On cherche la ligne du client (par son Nom)
-                        cellule = sheet.find(infos_actuelles['nom'])
-                        ligne_a_modifier = cellule.row
-                        
-                        # 2. On met à jour les champs (ATTENTION aux INDEX de COLONNES)
-                        sheet.update_cell(ligne_a_modifier, 3, nouvelle_adresse)  
-                        sheet.update_cell(ligne_a_modifier, 4, nouvelle_ville)    
-                        sheet.update_cell(ligne_a_modifier, 5, nouveau_code_postal) 
-                        sheet.update_cell(ligne_a_modifier, 6, nouveau_telephone)  
-                        sheet.update_cell(ligne_a_modifier, 7, nouvel_email)     
-                        sheet.update_cell(ligne_a_modifier, 8, nouvel_equipement)
-                        # Fichiers Client est en COLONNE 10 (J)
-                        sheet.update_cell(ligne_a_modifier, 10, final_fichiers_client) 
-                        
-                        st.success(f"Informations générales du client {client_selectionne} mises à jour !")
-                        
-                        st.cache_resource.clear()
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"Erreur lors de la mise à jour : Impossible de trouver la ligne du client. {e}")
+                        st.error(f"Erreur lors de la mise à jour : {e}")
                         
             st.markdown("---")
             
@@ -637,7 +538,6 @@ elif menu == "✍️ Mettre à jour (Modifier)":
             if not historique:
                 st.info("Ce client n'a pas encore d'intervention enregistrée.")
             else:
-                # Créer des clés pour l'édition
                 options_interventions = [
                     f"[{h['date']}] {h.get('type', 'Intervention')} - {h.get('desc', '')[:40]}..." 
                     for h in historique
@@ -648,23 +548,17 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     options_interventions
                 )
                 
-                # Trouver l'index de l'intervention sélectionnée dans la liste historique
                 inter_index = options_interventions.index(inter_selectionnee_titre)
                 inter_a_modifier = historique[inter_index]
                 
-                # --- LOGIQUE POUR GÉRER L'OPTION "AUTRE" EXISTANTE ---
                 standard_types = ["Entretien annuel", "Dépannage", "Installation", "Devis", "Visite technique"]
                 all_options = standard_types + ["Autre"]
 
                 stored_type = inter_a_modifier.get('type', 'Entretien annuel')
                 is_standard = stored_type in standard_types
                 
-                # Détermine la valeur par défaut pour le selectbox et le champ texte custom
-                default_selectbox_value = stored_type if is_standard else "Autre"
-                custom_type_value = stored_type if not is_standard else "" # Si non standard, stocker la valeur comme type personnalisé
-                
-                # Calcule l'index par défaut dans la liste 'all_options'
-                default_index = all_options.index(default_selectbox_value)
+                default_index = all_options.index(stored_type) if is_standard else all_options.index("Autre")
+                custom_type_value = stored_type if not is_standard else "" 
                 
                 with st.form(f"form_modifier_inter_{inter_index}"):
                     
@@ -674,16 +568,16 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}_mod")
                     
                     with col_edit_prix:
+                        # CORRECTION PRIX : float() et step=10.0 pour éviter l'erreur de type
                         nouveau_prix = st.number_input(
-    "Prix (€)", 
-    value=float(inter_a_modifier['prix']), 
-    step=10.0, 
-    key=f"prix_{inter_index}_mod"
-)
+                            "Prix (€)", 
+                            value=float(inter_a_modifier['prix']), 
+                            step=10.0, 
+                            key=f"prix_{inter_index}_mod"
+                        )
 
                     col_edit_type, col_edit_tech = st.columns(2)
                     with col_edit_type:
-                        # MODIFICATION : Utilisation de la liste complète et de l'index par défaut calculé
                         nouveau_type = st.selectbox(
                             "Type d'intervention",
                             all_options,
@@ -698,12 +592,11 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                             key=f"tech_{inter_index}_mod"
                         )
                     
-                    # NOUVEAU : Champ de spécification si "Autre" est sélectionné
                     type_specifique_mod = ""
                     if nouveau_type == "Autre":
                         type_specifique_mod = st.text_input(
                             "Spécifiez le type d'intervention", 
-                            value=custom_type_value, # Pré-rempli avec l'ancien type si c'était "Autre"
+                            value=custom_type_value,
                             key=f"type_specifique_{inter_index}_mod"
                         )
 
@@ -714,7 +607,6 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     )
                     
                     st.markdown("---")
-                    st.subheader("Fichiers Intervention")
                     
                     uploaded_file_inter_update = st.file_uploader(
                         "Téléverser un nouveau document d'intervention (max 5 Mo)", 
@@ -723,60 +615,47 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         type=['pdf', 'jpg', 'jpeg', 'png']
                     )
                     
-                    # Clé de session dynamique pour les liens
                     key_inter_files = f'text_inter_update_{inter_index}_mod'
                     if key_inter_files not in st.session_state:
                         st.session_state[key_inter_files] = inter_a_modifier.get('fichiers_inter', '')
 
+                    # Zone de texte unique (PAS DE value=...)
                     nouveaux_fichiers_inter = st.text_area(
                         "Liens Fichiers Intervention (Modifiez ici ou ajoutez après téléversement)", 
-                        value=st.session_state[key_inter_files], 
                         height=80,
                         key=key_inter_files
                     )
                     
-                    # Logique de gestion de l'upload pour la modification d'intervention
                     if uploaded_file_inter_update:
-                        if st.button("Ajouter le document téléversé aux liens intervention (Modif)", key=f"btn_upload_inter_update_{inter_index}_mod"):
+                        if st.form_submit_button("Générer lien fichier (Modif Inter)"):
                             new_link = handle_upload(uploaded_file_inter_update)
                             if new_link:
-                                current_links = st.session_state[key_inter_files].strip()
-                                if current_links:
-                                    st.session_state[key_inter_files] = current_links + f"\n{new_link}"
-                                else:
-                                    st.session_state[key_inter_files] = new_link
-                                
+                                st.session_state[key_inter_files] += f"\n{new_link}"
                                 st.rerun() 
 
                     sauvegarder_inter = st.form_submit_button("Sauvegarder l'intervention modifiée")
                     
                     if sauvegarder_inter:
-                        
-                        # Déterminer la valeur finale du type d'intervention
                         type_a_enregistrer = nouveau_type
                         if nouveau_type == "Autre":
                             if not type_specifique_mod.strip():
                                 st.warning("Veuillez spécifier le type d'intervention 'Autre'.")
-                                st.stop() # Stop execution if the field is empty
+                                st.stop()
                             type_a_enregistrer = type_specifique_mod.strip()
 
-                        # Utiliser la valeur finale du champ de liens
                         final_fichiers_inter = st.session_state.get(key_inter_files, '')
 
-                        # Mettre à jour l'objet dans la liste historique
                         historique[inter_index] = {
                             "date": str(nouvelle_date),
-                            "type": type_a_enregistrer, # Utilisation de la valeur finale
+                            "type": type_a_enregistrer,
                             "techniciens": nouveaux_techniciens,
                             "desc": nouvelle_desc,
                             "prix": nouveau_prix,
                             "fichiers_inter": final_fichiers_inter
                         }
                         
-                        # Convertir l'historique mis à jour en JSON
                         historique_txt = json.dumps(historique, ensure_ascii=False)
                         
-                        # Enregistrer le nouvel historique dans Google Sheets (Colonne 9 / I)
                         if update_client_field(sheet, infos_actuelles['nom'], 9, historique_txt):
                             st.success(f"Intervention du {nouvelle_date} mise à jour avec succès.")
                             st.cache_resource.clear()
@@ -871,6 +750,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
