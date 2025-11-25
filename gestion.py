@@ -515,14 +515,16 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     type=['pdf', 'jpg', 'jpeg', 'png']
                 )
 
-                # Ce bloc pour les liens fichiers était déjà correct (il avait déjà une clé dynamique)
+               # ... (code précédent inchangé)
                 key_client_files = f'text_client_update_{client_selectionne}_general'
+                
+                # On initialise la mémoire si elle n'existe pas encore pour ce client
                 if key_client_files not in st.session_state:
                      st.session_state[key_client_files] = infos_actuelles.get('fichiers_client', '')
 
+                # CORRECTION : On retire 'value=...' car la 'key' suffit à Streamlit pour trouver la valeur
                 nouveaux_fichiers_client = st.text_area(
                     "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
-                    value=st.session_state[key_client_files],
                     height=100,
                     key=key_client_files 
                 )
@@ -572,17 +574,19 @@ elif menu == "✍️ Mettre à jour (Modifier)":
 
                 # NOUVEAU CHAMP DE FICHIERS CLIENT
                 # Utilisation d'une clé session pour la mise à jour dynamique
+              # ... (code précédent inchangé)
                 key_client_files = f'text_client_update_{client_selectionne}_general'
+                
+                # On initialise la mémoire si elle n'existe pas encore pour ce client
                 if key_client_files not in st.session_state:
                      st.session_state[key_client_files] = infos_actuelles.get('fichiers_client', '')
 
+                # CORRECTION : On retire 'value=...' car la 'key' suffit à Streamlit pour trouver la valeur
                 nouveaux_fichiers_client = st.text_area(
                     "Liens Fichiers Client (Modifiez ici ou ajoutez après téléversement)", 
-                    value=st.session_state[key_client_files],
                     height=100,
-                    key=key_client_files # Clé dynamique
+                    key=key_client_files 
                 )
-                
                 # Logique de gestion de l'upload pour la modification client
                 if uploaded_file_client_update:
                     if st.button("Ajouter le document téléversé aux liens client (Modif)", key="btn_upload_client_update_general"):
@@ -869,6 +873,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
