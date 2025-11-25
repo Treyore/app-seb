@@ -314,19 +314,22 @@ if menu == "🔍 Rechercher":
 
 elif menu == "➕ Nouveau Client":
     st.header("Nouveau Client")
+    # clear_on_submit=True permet de vider les cases après l'enregistrement
     with st.form("form_nouveau", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
-        # NOTEZ BIEN LES 'key=' CI-DESSOUS
+        # --- COLONNE DE GAUCHE (Nom, Ville, Adresse...) ---
         with col1:
-            nom = st.text_input("Nom", key="nc_nom")
+            # J'ai ajouté une étoile * pour montrer que c'est obligatoire
+            nom = st.text_input("Nom *", key="nc_nom") 
+            ville = st.text_input("Ville *", key="nc_ville") # La ville est maintenant en 2ème position à gauche
             adresse = st.text_input("Adresse", key="nc_adresse")
             code_postal = st.text_input("Code Postal", key="nc_code_postal")
-            telephone = st.text_input("Téléphone", key="nc_telephone")
             
+        # --- COLONNE DE DROITE (Prénom, Tel...) ---
         with col2:
-            prenom = st.text_input("Prénom", key="nc_prenom")
-            ville = st.text_input("Ville", key="nc_ville")
+            prenom = st.text_input("Prénom", key="nc_prenom") # Le prénom est en haut à droite
+            telephone = st.text_input("Téléphone", key="nc_telephone")
             email = st.text_input("Email", key="nc_email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)", key="nc_equipement")
         
@@ -334,19 +337,21 @@ elif menu == "➕ Nouveau Client":
         st.subheader("Fichiers Client")
         
         uploaded_file_client = st.file_uploader(
-            "Téléverser un document client", 
+            "Téléverser un document client (max 5 Mo)", 
             key="file_client_add",
+            accept_multiple_files=False,
             type=['pdf', 'jpg', 'jpeg', 'png']
         )
         
         if 'text_client_add' not in st.session_state: st.session_state.text_client_add = ""
         fichiers_client = st.text_area(
-            "Liens Fichiers Client", 
+            "Liens Fichiers Client (Liens existants, ou liens générés après téléversement)", 
             height=100,
             key="text_client_add",
             value=st.session_state.text_client_add
         )
         
+        # Bouton upload (Génération de lien)
         if uploaded_file_client:
             if st.form_submit_button("Générer lien fichier (Cliquer avant d'enregistrer)"):
                 new_link = handle_upload(uploaded_file_client)
@@ -356,14 +361,22 @@ elif menu == "➕ Nouveau Client":
             
         valider = st.form_submit_button("Enregistrer le client")
         
-        if valider and nom and prenom: 
-            final_fichiers_client = st.session_state.get('text_client_add', '') 
-            nom_complet = f"{nom} {prenom}".strip()
-            
-            if nom_complet in db:
-                st.warning(f"Le client {nom_complet} existe déjà dans la base.")
+        # --- MODIFICATION DE LA VALIDATION ---
+        if valider:
+            # On vérifie seulement NOM et VILLE
+            if nom and ville: 
+                final_fichiers_client = st.session_state.get('text_client_add', '') 
+                
+                # On construit le nom complet (si prénom est vide, ça mettra juste le Nom)
+                nom_complet = f"{nom} {prenom}".strip()
+                
+                if nom_complet in db:
+                    st.warning(f"Le client {nom_complet} existe déjà dans la base.")
+                else:
+                    ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
             else:
-                ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
+                # Message d'erreur si Nom ou Ville manque
+                st.error("Le Nom et la Ville sont obligatoires.")
 
 
 elif menu == "🛠️ Nouvelle Intervention":
@@ -750,6 +763,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
