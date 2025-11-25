@@ -515,8 +515,6 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                     type=['pdf', 'jpg', 'jpeg', 'png']
                 )
 
-               # ... (code précédent inchangé)
-                key_client_files = f'text_client_update_{client_selectionne}_general'
                 
                 # On initialise la mémoire si elle n'existe pas encore pour ce client
                 if key_client_files not in st.session_state:
@@ -873,6 +871,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
