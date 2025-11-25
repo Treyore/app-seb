@@ -107,38 +107,30 @@ def charger_donnees(sheet):
     return db
 
 def ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, tel, email, equipement, fichiers_client):
-    # L'ordre DOIT correspond à l'ordre de vos colonnes dans Google Sheet !
-    # Colonne I (9) = Historique, Colonne J (10) = Fichiers_Client
+    # Ajout de la ligne (Historique en 9, Fichiers en 10)
     nouvelle_ligne = [
         nom, prenom, adresse, ville, code_postal, tel, email, equipement, 
-        "[]", # Historique (Colonne 9 / I)
-        fichiers_client # Fichiers_Client (Colonne 10 / J)
+        "[]", 
+        fichiers_client
     ]
     sheet.append_row(nouvelle_ligne)
 
-    # Message de succès
-    st.session_state["succes_ajout"] = f"Client {nom} {prenom} ajouté avec succès !"
+    # 1. Message de succès
+    st.session_state['succes_ajout'] = f"✅ Client {nom} {prenom} ajouté avec succès !"
 
-    # Vider tous les champs du formulaire "Nouveau Client"
-    for cle in [
-        "nc_nom",
-        "nc_prenom",
-        "nc_adresse",
-        "nc_ville",
-        "nc_code_postal",
-        "nc_telephone",
-        "nc_email",
-        "nc_equipement",
-        "text_client_add",   # textarea liens client
-        "file_client_add",   # file_uploader client
-    ]:
-        if cle in st.session_state:
-            del st.session_state[cle]
+    # 2. VIDAGE DES CASES (RESET)
+    # On supprime les valeurs de la mémoire pour que les cases redeviennent vides
+    keys_a_vider = [
+        "nc_nom", "nc_prenom", "nc_adresse", "nc_ville", 
+        "nc_code_postal", "nc_telephone", "nc_email", "nc_equipement",
+        "text_client_add", "file_client_add"
+    ]
+    for key in keys_a_vider:
+        if key in st.session_state:
+            del st.session_state[key]
 
-    # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
     st.rerun()
-
 
 # Fonction générique pour mettre à jour un champ unique dans la ligne d'un client
 def update_client_field(sheet, nom_client_principal, col_index, new_value):
@@ -159,39 +151,28 @@ def ajouter_inter_sheet(sheet, nom_client_cle, db, nouvelle_inter):
     nom = db[nom_client_cle]['nom']
     
     try:
-        # On cherche le client par son Nom (colonne 1)
         cellule = sheet.find(nom)
-        # Historique est en COLONNE 9 (I)
+        # Historique est en COLONNE 9
         sheet.update_cell(cellule.row, 9, historique_txt) 
         
-        # MODIFICATION : Message de succès dans la session
-        st.session_state['succes_ajout'] = "Intervention ajoutée avec succès !"
-        
-        # MODIFICATION : Nettoyage des champs du formulaire d'intervention
-        # MODIFICATION : Nettoyage des champs du formulaire d'intervention
-        cles_a_vider = [
-            "inter_desc",
-            "inter_prix",
-            "inter_type_specifique",
-            "text_inter_add",
-            "inter_techs",
-            "inter_type_select",
-            "inter_client_select",
-            "inter_date",
-            "file_inter_add",
-        ]
+        # 1. Message de succès
+        st.session_state['succes_ajout'] = f"✅ Intervention ajoutée pour {nom} !"
 
-        for cle in cles_a_vider:
-            if cle in st.session_state:
-                del st.session_state[cle]
+        # 2. VIDAGE DES CASES (RESET)
+        keys_a_vider = [
+            "inter_desc", "inter_prix", "inter_type_specifique", 
+            "text_inter_add", "inter_techs", "inter_date", "file_inter_add"
+            # On ne vide pas le client ou le type par défaut pour éviter des bugs visuels
+        ]
+        for key in keys_a_vider:
+            if key in st.session_state:
+                del st.session_state[key]
 
     except:
         st.error("Impossible de retrouver la ligne du client pour la mise à jour de l'historique.")
         
-    # Après ajout, invalider le cache de la feuille pour que les données soient rechargées
     st.cache_resource.clear()
     st.rerun()
-
 # FONCTION POUR SUPPRIMER UN CLIENT
 def supprimer_client_sheet(sheet, nom_client):
     """Supprime la ligne du client dans Google Sheets en se basant sur le Nom."""
@@ -338,14 +319,13 @@ if menu == "🔍 Rechercher":
     else:
         st.warning("Aucun client trouvé correspondant à la recherche.")
 
-
 elif menu == "➕ Nouveau Client":
     st.header("Nouveau Client")
     with st.form("form_nouveau"):
-        # Organisation en colonnes
         col1, col2 = st.columns(2)
         
         with col1:
+            # AJOUT DES CLÉS (key) pour identifier les cases
             nom = st.text_input("Nom", key="nc_nom")
             adresse = st.text_input("Adresse", key="nc_adresse")
             code_postal = st.text_input("Code Postal", key="nc_code_postal")
@@ -357,11 +337,9 @@ elif menu == "➕ Nouveau Client":
             email = st.text_input("Email", key="nc_email")
             equipement = st.text_input("Équipement (Chaudière, PAC, etc.)", key="nc_equipement")
 
-
         st.markdown("---")
         st.subheader("Fichiers Client")
         
-        # NOUVEAU: Champ de téléversement pour le client
         uploaded_file_client = st.file_uploader(
             "Téléverser un document client (max 5 Mo)", 
             key="file_client_add",
@@ -369,45 +347,33 @@ elif menu == "➕ Nouveau Client":
             type=['pdf', 'jpg', 'jpeg', 'png']
         )
         
-        # Champ texte pour les liens (mis à jour après upload)
+        if 'text_client_add' not in st.session_state: st.session_state.text_client_add = ""
         fichiers_client = st.text_area(
             "Liens Fichiers Client (Liens existants, ou liens générés après téléversement)", 
             height=100,
             key="text_client_add",
-            value="" # Assurez-vous que la valeur initiale est vide
+            value=st.session_state.text_client_add
         )
         
-        # Logique de gestion de l'upload pour le client (doit être lié à un bouton ou à un événement)
+        # Bouton upload
         if uploaded_file_client:
-            # S'il y a un fichier uploadé, traiter l'upload
-            if st.button("Ajouter le document téléversé aux liens client", key="btn_upload_client_add"): # Clé unique
+            if st.form_submit_button("Générer lien fichier (Cliquer avant d'enregistrer)"):
                 new_link = handle_upload(uploaded_file_client)
                 if new_link:
-                    # Ajouter le nouveau lien au champ texte existant
-                    current_links = st.session_state.text_client_add.strip()
-                    if current_links:
-                        st.session_state.text_client_add = current_links + f"\n{new_link}"
-                    else:
-                        st.session_state.text_client_add = new_link
-                    
-                    # Force le champ à se mettre à jour visuellement
-                    # Le champ "fichiers_client" dans le formulaire utilise st.session_state.text_client_add comme key.
-                    # Il se mettra à jour lors du rerun.
+                    st.session_state.text_client_add += f"\n{new_link}"
                     st.rerun() 
             
         valider = st.form_submit_button("Enregistrer le client")
         
-        if valider and nom and prenom: # Exiger au moins Nom et Prénom
-            # Utiliser la valeur finale du champ de liens
-            final_fichiers_client = st.session_state.get('text_client_add', '') # Utiliser get() avec une valeur par défaut
-
+        if valider and nom and prenom: 
+            final_fichiers_client = st.session_state.get('text_client_add', '') 
             nom_complet = f"{nom} {prenom}".strip()
+            
             if nom_complet in db:
                 st.warning(f"Le client {nom_complet} existe déjà dans la base.")
             else:
+                # Appel de la fonction modifiée qui videra les cases
                 ajouter_nouveau_client_sheet(sheet, nom, prenom, adresse, ville, code_postal, telephone, email, equipement, final_fichiers_client)
-                # Le st.success est géré dans ajouter_nouveau_client_sheet maintenant
-                # Les champs du formulaire seront vidés au rechargement (comportement par défaut des forms)
 
 
 elif menu == "🛠️ Nouvelle Intervention":
@@ -847,6 +813,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
