@@ -394,7 +394,8 @@ elif menu == "🛠️ Nouvelle Intervention":
         
         date = st.date_input("Date", datetime.now(), key="inter_date")
         desc = st.text_area("Description de l'intervention", key="inter_desc")
-        prix = st.number_input("Prix (en €)", step=10.0, key="inter_prix")
+       # Ajoutez 0.0 pour définir la valeur par défaut en float, et step=10.0
+        prix = st.number_input("Prix (en €)", value=0.0, step=10.0, key="inter_prix")
         
         st.markdown("---")
         st.subheader("Fichiers Intervention")
@@ -671,7 +672,8 @@ elif menu == "✍️ Mettre à jour (Modifier)":
                         nouvelle_date = st.date_input("Date", value=date_obj, key=f"date_{inter_index}_mod")
                     
                     with col_edit_prix:
-                        nouveau_prix = st.number_input("Prix (€)", value=inter_a_modifier['prix'], step=10, key=f"prix_{inter_index}_mod")
+                        nouveau_prix = st.number_input("Prix (€)", value=float(inter_a_modifier['prix']), step=10.0, key=f"prix_{inter_index}_mod")
+)
 
                     col_edit_type, col_edit_tech = st.columns(2)
                     with col_edit_type:
@@ -863,6 +865,7 @@ elif menu == "🗑️ Supprimer Client/Intervention":
                         st.success(f"L'intervention '{inter_a_supprimer_titre}' a été supprimée avec succès de l'historique de {client_selectionne_inter_del}.")
                         st.cache_resource.clear()
                         st.rerun()
+
 
 
 
